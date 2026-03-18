@@ -17,6 +17,14 @@ export default function PreMatchSetup() {
   const [matchData, setMatchData] = useState({ opponent: '', date: new Date().toISOString().split('T')[0], venue: '' })
   const [selectedIds, setSelectedIds] = useState([])
   const [assignments, setAssignments] = useState({}) // { playerId: 'FORWARD'|'MIDFIELD'|'DEFENCE'|'BENCH' }
+  const [showPoints, setShowPoints] = useState(false)
+
+  const POINTS_CAP = 42
+  const selectedPoints = selectedIds.reduce((sum, id) => {
+    const p = players.find(pl => pl.id === id)
+    return sum + (p?.points ?? 0)
+  }, 0)
+  const pointsOver = selectedPoints > POINTS_CAP
 
   const activePlayers = players.filter(p => p.active).sort((a, b) => a.number - b.number)
 
@@ -144,10 +152,38 @@ export default function PreMatchSetup() {
           <div className="flex flex-col gap-4 h-full">
             <div className="flex items-center justify-between">
               <h2 className="font-condensed font-extrabold text-2xl text-white uppercase">Select Squad</h2>
-              <div className={`font-condensed font-bold text-lg ${selectedIds.length >= 22 ? 'text-sharks-red' : 'text-white'}`}>
-                {selectedIds.length} / 22
+              <div className="flex items-center gap-3">
+                {/* Points toggle */}
+                <button
+                  onClick={() => setShowPoints(v => !v)}
+                  className={`flex items-center gap-2 px-3 h-8 rounded-lg border font-condensed font-bold text-xs uppercase tracking-wide transition-colors ${
+                    showPoints
+                      ? 'bg-sharks-red/20 border-sharks-red text-sharks-red'
+                      : 'bg-sharks-surface2 border-sharks-border text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Points
+                </button>
+                <div className={`font-condensed font-bold text-lg ${selectedIds.length >= 22 ? 'text-sharks-red' : 'text-white'}`}>
+                  {selectedIds.length} / 22
+                </div>
               </div>
             </div>
+
+            {/* Points summary bar */}
+            {showPoints && (
+              <div className={`flex items-center justify-between px-4 h-11 rounded-xl border font-condensed font-bold text-sm transition-colors ${
+                pointsOver
+                  ? 'bg-red-950 border-red-700 text-red-300'
+                  : 'bg-sharks-surface border-sharks-border text-white'
+              }`}>
+                <span className="uppercase tracking-wide">Squad Points</span>
+                <span className={`text-lg ${pointsOver ? 'text-red-400' : selectedPoints === POINTS_CAP ? 'text-green-400' : 'text-white'}`}>
+                  {selectedPoints} / {POINTS_CAP}
+                  {pointsOver && <span className="ml-2 text-xs text-red-400">OVER CAP</span>}
+                </span>
+              </div>
+            )}
 
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 flex-1 overflow-auto">
               {activePlayers.map(player => {
@@ -166,10 +202,15 @@ export default function PreMatchSetup() {
                     <div className="font-condensed font-black text-2xl text-white">#{player.number}</div>
                     <div className="font-condensed font-bold text-sm text-white uppercase leading-tight">{player.last_name}</div>
                     <div className="font-condensed text-xs text-gray-400">{player.first_name}</div>
-                    <div className={`mt-1.5 font-condensed text-xs font-bold uppercase ${
-                      player.primary_position === 'FORWARD' ? 'text-red-400' :
-                      player.primary_position === 'MIDFIELD' ? 'text-green-400' : 'text-indigo-400'
-                    }`}>{POS_LABELS[player.primary_position]}</div>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className={`font-condensed text-xs font-bold uppercase ${
+                        player.primary_position === 'FORWARD' ? 'text-red-400' :
+                        player.primary_position === 'MIDFIELD' ? 'text-green-400' : 'text-indigo-400'
+                      }`}>{POS_LABELS[player.primary_position]}</span>
+                      {showPoints && player.points != null && (
+                        <span className="font-condensed text-xs font-bold text-yellow-400">{player.points}pt</span>
+                      )}
+                    </div>
                   </button>
                 )
               })}

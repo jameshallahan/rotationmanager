@@ -26,6 +26,7 @@ function PlayerModal({ player, onSave, onClose, existingNumbers }) {
     first_name: player?.first_name || '',
     last_name: player?.last_name || '',
     number: player?.number || '',
+    points: player?.points ?? '',
     primary_position: player?.primary_position || 'MIDFIELD',
     secondary_positions: player?.secondary_positions || [],
     active: true,
@@ -46,7 +47,7 @@ function PlayerModal({ player, onSave, onClose, existingNumbers }) {
   const handleSave = () => {
     const e = validate()
     if (Object.keys(e).length) { setErrors(e); return }
-    onSave({ ...form, number: parseInt(form.number) })
+    onSave({ ...form, number: parseInt(form.number), points: form.points !== '' ? parseInt(form.points) : null })
   }
 
   const handleKeyDown = (e) => {
@@ -96,16 +97,28 @@ function PlayerModal({ player, onSave, onClose, existingNumbers }) {
             </Field>
           </div>
 
-          {/* Jersey number */}
-          <Field label="Jumper Number" error={errors.number}>
-            <input
-              type="number"
-              min="1" max="99"
-              className="w-full bg-sharks-surface2 border border-sharks-border text-white font-condensed font-black text-3xl rounded-xl px-4 h-14 focus:outline-none focus:border-sharks-red transition-colors text-center tracking-widest"
-              value={form.number}
-              onChange={e => setForm(f => ({ ...f, number: e.target.value }))}
-            />
-          </Field>
+          {/* Jersey number + Points row */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Jumper Number" error={errors.number}>
+              <input
+                type="number"
+                min="1" max="99"
+                className="w-full bg-sharks-surface2 border border-sharks-border text-white font-condensed font-black text-3xl rounded-xl px-4 h-14 focus:outline-none focus:border-sharks-red transition-colors text-center tracking-widest"
+                value={form.number}
+                onChange={e => setForm(f => ({ ...f, number: e.target.value }))}
+              />
+            </Field>
+            <Field label="Player Points">
+              <input
+                type="number"
+                min="1" max="10"
+                placeholder="—"
+                className="w-full bg-sharks-surface2 border border-sharks-border text-white font-condensed font-black text-3xl rounded-xl px-4 h-14 focus:outline-none focus:border-sharks-red transition-colors text-center tracking-widest"
+                value={form.points}
+                onChange={e => setForm(f => ({ ...f, points: e.target.value }))}
+              />
+            </Field>
+          </div>
 
           {/* Primary position */}
           <Field label="Primary Position" error={errors.primary_position}>
@@ -249,6 +262,7 @@ export default function RosterSetup() {
               <div className="w-16 font-condensed text-xs text-gray-500 uppercase tracking-widest">#</div>
               <div className="flex-1 font-condensed text-xs text-gray-500 uppercase tracking-widest">Name</div>
               <div className="w-20 font-condensed text-xs text-gray-500 uppercase tracking-widest text-center">Position</div>
+              <div className="w-12 font-condensed text-xs text-gray-500 uppercase tracking-widest text-center">Pts</div>
               <div className="w-20" />
             </div>
 
@@ -279,6 +293,13 @@ export default function RosterSetup() {
                 <div className="w-20 flex justify-center">
                   <span className={`font-condensed text-xs font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wide ${POS_COLORS[player.primary_position]}`}>
                     {POS_LABELS[player.primary_position]}
+                  </span>
+                </div>
+
+                {/* Points */}
+                <div className="w-12 text-center">
+                  <span className="font-condensed font-bold text-white text-base">
+                    {player.points ?? <span className="text-gray-600">—</span>}
                   </span>
                 </div>
 
