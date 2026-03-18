@@ -1,7 +1,15 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 
-const sb = (promise) => promise?.catch(err => console.warn('Supabase sync error:', err))
+// Catches both synchronous throws and async rejections from Supabase calls
+const sb = (fn) => {
+  try {
+    const p = typeof fn === 'function' ? fn() : fn
+    p?.catch?.(err => console.warn('Supabase sync error:', err))
+  } catch (err) {
+    console.warn('Supabase sync error:', err)
+  }
+}
 
 export const useGameStore = create((set, get) => ({
   // State
@@ -23,7 +31,7 @@ export const useGameStore = create((set, get) => ({
     set(s => ({ players: [...s.players, newPlayer] }))
     get().saveToLocalStorage()
     if (supabase) {
-      sb(supabase.from('players').insert({
+      sb(() => supabase.from('players').insert({
         id,
         first_name: player.first_name,
         last_name: player.last_name,
@@ -40,7 +48,7 @@ export const useGameStore = create((set, get) => ({
     set(s => ({ players: s.players.map(p => p.id === id ? { ...p, ...data } : p) }))
     get().saveToLocalStorage()
     if (supabase) {
-      sb(supabase.from('players').update({
+      sb(() => supabase.from('players').update({
         first_name: data.first_name,
         last_name: data.last_name,
         number: data.number,
@@ -55,7 +63,7 @@ export const useGameStore = create((set, get) => ({
   deletePlayer: (id) => {
     set(s => ({ players: s.players.filter(p => p.id !== id) }))
     get().saveToLocalStorage()
-    if (supabase) sb(supabase.from('players').delete().eq('id', id))
+    if (supabase) sb(() => supabase.from('players').delete().eq('id', id))
   },
 
   // Match management
@@ -73,19 +81,19 @@ export const useGameStore = create((set, get) => ({
     }))
     get().saveToLocalStorage()
     if (supabase) {
-      supabase.from('matches').insert({
+      sb(() => supabase.from('matches').insert({
         id,
         opponent: data.opponent,
         date: data.date,
         venue: data.venue || null,
       }).then(() => {
-        sb(supabase.from('game_state').insert({
+        sb(() => supabase.from('game_state').insert({
           match_id: id,
           quarter: 1,
           is_running: false,
           quarter_seconds: 0,
         }))
-      }).catch(err => console.warn('Supabase sync error:', err))
+      }))
     }
     return match
   },
@@ -100,8 +108,8 @@ export const useGameStore = create((set, get) => ({
     get().saveToLocalStorage()
     if (supabase && normalized.length > 0) {
       const matchId = normalized[0].match_id
-      supabase.from('match_players').delete().eq('match_id', matchId).then(() => {
-        sb(supabase.from('match_players').insert(
+      sb(() => supabase.from('match_players').delete().eq('match_id', matchId).then(() => {
+        sb(() => supabase.from('match_players').insert(
           normalized.map(mp => ({
             id: mp.id,
             match_id: mp.match_id,
@@ -111,7 +119,7 @@ export const useGameStore = create((set, get) => ({
             status: mp.status || 'ACTIVE',
           }))
         ))
-      }).catch(err => console.warn('Supabase sync error:', err))
+      }))
     }
   },
 
@@ -181,11 +189,9 @@ export const useGameStore = create((set, get) => ({
     get().saveToLocalStorage()
 
     if (supabase) {
-      // Update positions in DB
-      sb(supabase.from('match_players').update({ current_position: toPos }).eq('id', player1Mp.id))
-      sb(supabase.from('match_players').update({ current_position: fromPos }).eq('id', player2Mp.id))
-      // Insert rotation events
-      sb(supabase.from('rotation_events').insert([
+      sb(() => supabase.from('match_players').update({ current_position: toPos }).eq('id', player1Mp.id))
+      sb(() => supabase.from('match_players').update({ current_position: fromPos }).eq('id', player2Mp.id))
+      sb(() => supabase.from('rotation_events').insert([
         { id: event1.id, match_id: event1.match_id, player_id: event1.player_id, event_type: event1.event_type, from_position: event1.from_position, to_position: event1.to_position, quarter: event1.quarter, quarter_time_seconds: event1.quarter_time_seconds, wall_time: event1.wall_time },
         { id: event2.id, match_id: event2.match_id, player_id: event2.player_id, event_type: event2.event_type, from_position: event2.from_position, to_position: event2.to_position, quarter: event2.quarter, quarter_time_seconds: event2.quarter_time_seconds, wall_time: event2.wall_time },
       ]))
@@ -201,7 +207,7 @@ export const useGameStore = create((set, get) => ({
       )
     })
     get().saveToLocalStorage()
-    if (supabase && mp) sb(supabase.from('match_players').update({ status: 'INJURED', current_position: 'BENCH' }).eq('id', mp.id))
+    if (supabase && mp) sb(() => supabase.from('match_players').update({ status: 'INJURED', current_position: 'BENCH' }).eq('id', mp.id))
   },
 
   returnFromInjury: (playerId) => {
@@ -213,7 +219,7 @@ export const useGameStore = create((set, get) => ({
       )
     })
     get().saveToLocalStorage()
-    if (supabase && mp) sb(supabase.from('match_players').update({ status: 'ACTIVE' }).eq('id', mp.id))
+    if (supabase && mp) sb(() => supabase.from('match_players').update({ status: 'ACTIVE' }).eq('id', mp.id))
   },
 
   // Game clock
@@ -245,7 +251,7 @@ export const useGameStore = create((set, get) => ({
     get().saveToLocalStorage()
     if (supabase) {
       const { currentMatch } = get()
-      if (currentMatch) sb(supabase.from('game_state').update({ is_running: true, updated_at: new Date().toISOString() }).eq('match_id', currentMatch.id))
+      if (currentMatch) sb(() => supabase.from('game_state').update({ is_running: true, updated_at: new Date().toISOString() }).eq('match_id', currentMatch.id))
     }
   },
 
@@ -266,21 +272,18 @@ export const useGameStore = create((set, get) => ({
     get().saveToLocalStorage()
 
     if (supabase && currentMatch) {
-      // Sync game state
-      sb(supabase.from('game_state').update({
+      sb(() => supabase.from('game_state').update({
         is_running: false,
         quarter: gameState.quarter,
         quarter_seconds: gameState.quarterSeconds,
         updated_at: new Date().toISOString(),
       }).eq('match_id', currentMatch.id))
-      // Save quarter history
-      sb(supabase.from('quarter_history').upsert({
+      sb(() => supabase.from('quarter_history').upsert({
         match_id: currentMatch.id,
         quarter: gameState.quarter,
         quarter_seconds: gameState.quarterSeconds,
         player_timers: playerTimers,
       }, { onConflict: 'match_id,quarter' }))
-      // Sync player timers
       get().syncTimers()
     }
   },
@@ -294,7 +297,7 @@ export const useGameStore = create((set, get) => ({
     })
     get().saveToLocalStorage()
     if (supabase && currentMatch) {
-      sb(supabase.from('game_state').update({
+      sb(() => supabase.from('game_state').update({
         quarter: nextQuarter,
         is_running: false,
         quarter_seconds: 0,
@@ -317,14 +320,14 @@ export const useGameStore = create((set, get) => ({
       last_tick_position: timer.lastTickPosition || null,
       updated_at: new Date().toISOString(),
     }))
-    if (rows.length > 0) sb(supabase.from('player_timers').upsert(rows, { onConflict: 'match_id,player_id' }))
+    if (rows.length > 0) sb(() => supabase.from('player_timers').upsert(rows, { onConflict: 'match_id,player_id' }))
   },
 
   syncTimersAndState: () => {
     const { gameState, currentMatch } = get()
     get().syncTimers()
     if (supabase && currentMatch) {
-      sb(supabase.from('game_state').update({
+      sb(() => supabase.from('game_state').update({
         is_running: false,
         quarter: gameState.quarter,
         quarter_seconds: gameState.quarterSeconds,
