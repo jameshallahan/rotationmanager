@@ -11,13 +11,23 @@ const POS_COLORS = {
 }
 const POS_LABELS = { FORWARD: 'FWD', MIDFIELD: 'MID', DEFENCE: 'DEF' }
 
+function Field({ label, error, children }) {
+  return (
+    <div>
+      <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">{label}</label>
+      {children}
+      {error && <p className="font-condensed text-xs text-red-400 mt-1">{error}</p>}
+    </div>
+  )
+}
+
 function PlayerModal({ player, onSave, onClose, existingNumbers }) {
   const [form, setForm] = useState({
     first_name: player?.first_name || '',
     last_name: player?.last_name || '',
     number: player?.number || '',
     primary_position: player?.primary_position || 'MIDFIELD',
-    secondary_positions: [],
+    secondary_positions: player?.secondary_positions || [],
     active: true,
   })
   const [errors, setErrors] = useState({})
@@ -44,13 +54,15 @@ function PlayerModal({ player, onSave, onClose, existingNumbers }) {
     if (e.key === 'Escape') onClose()
   }
 
-  const Field = ({ label, error, children }) => (
-    <div>
-      <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">{label}</label>
-      {children}
-      {error && <p className="font-condensed text-xs text-red-400 mt-1">{error}</p>}
-    </div>
-  )
+  const toggleSecondary = (pos) => {
+    if (pos === form.primary_position) return
+    setForm(f => ({
+      ...f,
+      secondary_positions: f.secondary_positions.includes(pos)
+        ? f.secondary_positions.filter(p => p !== pos)
+        : [...f.secondary_positions, pos]
+    }))
+  }
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-50 p-6" onKeyDown={handleKeyDown}>
@@ -101,9 +113,34 @@ function PlayerModal({ player, onSave, onClose, existingNumbers }) {
               {POSITIONS.map(pos => (
                 <button
                   key={pos}
-                  onClick={() => setForm(f => ({ ...f, primary_position: pos }))}
+                  type="button"
+                  onClick={() => setForm(f => ({
+                    ...f,
+                    primary_position: pos,
+                    secondary_positions: f.secondary_positions.filter(p => p !== pos)
+                  }))}
                   className={`flex-1 h-11 rounded-xl font-condensed font-bold text-sm uppercase tracking-wider border-2 transition-all ${
                     form.primary_position === pos
+                      ? POS_COLORS[pos]
+                      : 'bg-sharks-surface2 border-sharks-border text-gray-500 hover:border-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {POS_LABELS[pos]}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          {/* Secondary positions */}
+          <Field label="Secondary Position (optional)">
+            <div className="flex gap-2">
+              {POSITIONS.filter(pos => pos !== form.primary_position).map(pos => (
+                <button
+                  key={pos}
+                  type="button"
+                  onClick={() => toggleSecondary(pos)}
+                  className={`flex-1 h-11 rounded-xl font-condensed font-bold text-sm uppercase tracking-wider border-2 transition-all ${
+                    form.secondary_positions.includes(pos)
                       ? POS_COLORS[pos]
                       : 'bg-sharks-surface2 border-sharks-border text-gray-500 hover:border-gray-500 hover:text-gray-300'
                   }`}
