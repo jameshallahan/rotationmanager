@@ -8,10 +8,10 @@ import GameDay from './screens/GameDay'
 import Reports from './screens/Reports'
 
 export default function App() {
-  const loadFromSupabase = useGameStore(s => s.loadFromSupabase)
+  const loadFromLocalStorage = useGameStore(s => s.loadFromLocalStorage)
 
   useEffect(() => {
-    loadFromSupabase()
+    loadFromLocalStorage()
   }, [])
 
   return (
