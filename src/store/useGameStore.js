@@ -380,8 +380,37 @@ export const useGameStore = create((set, get) => ({
       if (playersRes.error) throw playersRes.error
       if (matchesRes.error) throw matchesRes.error
 
-      const players = playersRes.data
-      const matches = matchesRes.data
+      let players = playersRes.data
+      let matches = matchesRes.data
+
+      // Migrate any players that exist in localStorage but not in Supabase
+      let localState = null
+      try {
+        const stored = localStorage.getItem('rotationiq')
+        if (stored) localState = JSON.parse(stored)
+      } catch (e) {}
+
+      if (players.length === 0 && localState?.players?.length > 0) {
+        // Re-ID any players that have non-UUID IDs (old Date.now() style)
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        const migrated = localState.players.map(p => ({
+          ...p,
+          id: UUID_RE.test(p.id) ? p.id : crypto.randomUUID(),
+        }))
+        sb(() => supabase.from('players').insert(
+          migrated.map(p => ({
+            id: p.id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            number: p.number,
+            points: p.points || null,
+            primary_position: p.primary_position,
+            secondary_positions: p.secondary_positions || [],
+            active: p.active !== false,
+          }))
+        ))
+        players = migrated
+      }
 
       if (!currentMatchId) {
         set({ players, matches })
