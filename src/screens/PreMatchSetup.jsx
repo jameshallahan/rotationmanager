@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Check, Plus, Minus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check, Plus, Minus, Home } from 'lucide-react'
 import { useGameStore } from '../store/useGameStore'
 
 // Named positions per zone — 2 rows × 3 cols each
@@ -130,15 +130,12 @@ export default function PreMatchSetup() {
     return newAssignments
   })
   const [selectedId, setSelectedId] = useState(null)
-  // ID of the match created when the user advances from step 1 (non-edit mode)
-  const [createdMatchId, setCreatedMatchId] = useState(null)
 
+  // In new-match mode, createMatch() runs on step 1→2 and sets currentMatch in the store.
+  // handleStart then just reads currentMatch.id from the store — no local ID needed.
   const handleNext = () => {
     if (!matchData.opponent.trim()) return
-    if (!isEditMode && !createdMatchId) {
-      const match = createMatch(matchData)
-      setCreatedMatchId(match.id)
-    }
+    if (!isEditMode) createMatch(matchData)
     setStep(2)
   }
 
@@ -180,11 +177,10 @@ export default function PreMatchSetup() {
   }
 
   const handleStart = () => {
-    if (!canStart) return
-    const matchId = isEditMode ? currentMatch.id : createdMatchId
+    if (!canStart || !currentMatch) return
     setMatchPlayers(
       Object.entries(assignments).map(([player_id, posId]) => ({
-        player_id, match_id: matchId,
+        player_id, match_id: currentMatch.id,
         current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
         status: 'ACTIVE',
       }))
@@ -230,6 +226,10 @@ export default function PreMatchSetup() {
           <button onClick={() => isEditMode ? navigate('/match/live') : step === 1 ? navigate('/') : setStep(1)}
             className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors">
             <ChevronLeft size={20} className="text-gray-400" />
+          </button>
+          <button onClick={() => navigate('/')}
+            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors">
+            <Home size={18} className="text-gray-400" />
           </button>
           <img src="/sharks-logo.png" alt="" className="h-10 w-auto" onError={e => { e.target.style.display = 'none' }} />
           <div className="h-6 w-px bg-sharks-border" />

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/useGameStore'
-import { BarChart2 } from 'lucide-react'
+import { BarChart2, Home } from 'lucide-react'
 
 const formatTime = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 
@@ -95,6 +95,15 @@ export default function Header() {
         title="View Report"
       >
         <BarChart2 size={18} className="text-gray-400" />
+      </button>
+
+      {/* Home button */}
+      <button
+        onClick={() => navigate('/')}
+        className="w-11 h-11 flex items-center justify-center bg-sharks-surface2 hover:bg-gray-700 rounded border border-sharks-border transition-colors"
+        title="Home"
+      >
+        <Home size={18} className="text-gray-400" />
       </button>
     </header>
   )

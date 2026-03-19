@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit2, Trash2, X, ChevronLeft, Check } from 'lucide-react'
+import { Plus, Edit2, Trash2, X, Home, Check } from 'lucide-react'
 import { useGameStore } from '../store/useGameStore'
 
 const POSITIONS = ['FORWARD', 'MIDFIELD', 'DEFENCE']
@@ -213,7 +213,7 @@ export default function RosterSetup() {
             onClick={() => navigate('/')}
             className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors"
           >
-            <ChevronLeft size={20} className="text-gray-400" />
+            <Home size={18} className="text-gray-400" />
           </button>
           {/* Logo */}
           <img

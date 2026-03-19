@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Download, ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronLeft, Download, ChevronUp, ChevronDown, Home } from 'lucide-react'
 import { useGameStore } from '../store/useGameStore'
 
 const formatTime = (s) => {
@@ -60,6 +60,9 @@ export default function Reports() {
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2">
             <ChevronLeft size={20} className="text-gray-400" />
+          </button>
+          <button onClick={() => navigate('/')} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2" title="Home">
+            <Home size={18} className="text-gray-400" />
           </button>
           <div>
             <h1 className="font-condensed font-black text-2xl text-white uppercase">Report</h1>
