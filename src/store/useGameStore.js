@@ -72,6 +72,34 @@ export const useGameStore = create((set, get) => ({
     return match
   },
 
+  // Reset clock + timers, keep same match + team
+  restartMatch: () => {
+    const { currentMatch, matchPlayers } = get()
+    if (!currentMatch) return
+    const freshGameState = { quarter: 1, isRunning: false, quarterSeconds: 0 }
+    const freshMatch = { ...currentMatch, game_state: freshGameState, quarter_history: {} }
+    const resetMatchPlayers = matchPlayers.map(mp => ({ ...mp, player_timers: {} }))
+    set({
+      currentMatch: freshMatch,
+      matches: get().matches.map(m => m.id === currentMatch.id ? freshMatch : m),
+      gameState: freshGameState,
+      playerTimers: {},
+      rotationEvents: [],
+      quarterHistory: {},
+      showQuarterReport: false,
+      matchPlayers: resetMatchPlayers,
+    })
+    if (supabase) {
+      Promise.all([
+        supabase.from('matches').update({ game_state: freshGameState, quarter_history: {} }).eq('id', currentMatch.id),
+        supabase.from('rotation_events').delete().eq('match_id', currentMatch.id),
+        supabase.from('match_players').upsert(resetMatchPlayers),
+      ]).then(([, , mpErr]) => { if (mpErr?.error) console.error('restartMatch:', mpErr.error) })
+    } else {
+      get().saveToLocalStorage()
+    }
+  },
+
   setMatchPlayers: (matchPlayers) => {
     set({ matchPlayers })
     if (supabase) {

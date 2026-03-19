@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Check, Plus, Minus } from 'lucide-react'
 import { useGameStore } from '../store/useGameStore'
 
@@ -88,17 +88,47 @@ function EmptySlot({ label, canDrop, onClick }) {
 }
 
 export default function PreMatchSetup() {
-  const navigate   = useNavigate()
-  const players    = useGameStore(s => s.players)
-  const createMatch    = useGameStore(s => s.createMatch)
+  const navigate        = useNavigate()
+  const [searchParams]  = useSearchParams()
+  const isEditMode      = searchParams.get('edit') === 'true'
+
+  const players         = useGameStore(s => s.players)
+  const currentMatch    = useGameStore(s => s.currentMatch)
+  const existingMatchPlayers = useGameStore(s => s.matchPlayers)
+  const createMatch     = useGameStore(s => s.createMatch)
   const setMatchPlayers = useGameStore(s => s.setMatchPlayers)
 
-  const [step, setStep] = useState(1)
-  const [matchData, setMatchData] = useState({
-    opponent: '', date: new Date().toISOString().split('T')[0], venue: '', bench_size: 4,
+  const [step, setStep] = useState(isEditMode ? 2 : 1)
+  const [matchData, setMatchData] = useState(() => {
+    if (isEditMode && currentMatch) {
+      return {
+        opponent:   currentMatch.opponent || '',
+        date:       currentMatch.date || new Date().toISOString().split('T')[0],
+        venue:      currentMatch.venue || '',
+        bench_size: currentMatch.bench_size || 4,
+      }
+    }
+    return { opponent: '', date: new Date().toISOString().split('T')[0], venue: '', bench_size: 4 }
   })
   // assignments: { playerId: positionId | 'BENCH' }
-  const [assignments, setAssignments] = useState({})
+  const [assignments, setAssignments] = useState(() => {
+    if (!isEditMode || !currentMatch) return {}
+    // Reconstruct assignments: distribute zone players to named positions in order
+    const newAssignments = {}
+    const zoneQueues = { DEFENCE: [], MIDFIELD: [], FORWARD: [], BENCH: [] }
+    existingMatchPlayers.forEach(mp => {
+      const bucket = zoneQueues[mp.current_position]
+      if (bucket) bucket.push(mp.player_id)
+    })
+    ;['DEFENCE', 'MIDFIELD', 'FORWARD'].forEach(zone => {
+      const positions = ZONE_POSITIONS[zone]
+      zoneQueues[zone].forEach((playerId, i) => {
+        if (positions[i]) newAssignments[playerId] = positions[i].id
+      })
+    })
+    zoneQueues.BENCH.forEach(playerId => { newAssignments[playerId] = 'BENCH' })
+    return newAssignments
+  })
   const [selectedId, setSelectedId] = useState(null)
 
   const activePlayers = players.filter(p => p.active).sort((a, b) => a.number - b.number)
@@ -140,14 +170,24 @@ export default function PreMatchSetup() {
 
   const handleStart = () => {
     if (!canStart) return
-    const match = createMatch(matchData)
-    setMatchPlayers(
-      Object.entries(assignments).map(([player_id, posId]) => ({
-        player_id, match_id: match.id,
-        current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
-        status: 'ACTIVE',
-      }))
-    )
+    if (isEditMode && currentMatch) {
+      setMatchPlayers(
+        Object.entries(assignments).map(([player_id, posId]) => ({
+          player_id, match_id: currentMatch.id,
+          current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
+          status: 'ACTIVE',
+        }))
+      )
+    } else {
+      const match = createMatch(matchData)
+      setMatchPlayers(
+        Object.entries(assignments).map(([player_id, posId]) => ({
+          player_id, match_id: match.id,
+          current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
+          status: 'ACTIVE',
+        }))
+      )
+    }
     navigate('/match/live')
   }
 
@@ -186,7 +226,7 @@ export default function PreMatchSetup() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
         <div className="flex items-center gap-4">
-          <button onClick={() => step === 1 ? navigate('/') : setStep(1)}
+          <button onClick={() => isEditMode ? navigate('/match/live') : step === 1 ? navigate('/') : setStep(1)}
             className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors">
             <ChevronLeft size={20} className="text-gray-400" />
           </button>
@@ -194,7 +234,7 @@ export default function PreMatchSetup() {
           <div className="h-6 w-px bg-sharks-border" />
           <div>
             <h1 className="font-condensed font-black text-white text-2xl uppercase tracking-wide leading-none">
-              {step === 1 ? 'New Match' : 'Team Selection'}
+              {isEditMode ? 'Change Team' : step === 1 ? 'New Match' : 'Team Selection'}
             </h1>
             <p className="font-condensed text-gray-500 text-xs mt-0.5">
               {step === 1
@@ -208,7 +248,7 @@ export default function PreMatchSetup() {
             className={`h-11 px-5 font-condensed font-bold text-sm uppercase tracking-wide rounded-xl flex items-center gap-2 transition-all ${
               canStart ? 'bg-sharks-red hover:bg-red-700 text-white' : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
             }`}>
-            <Check size={16} /> Start Match
+            <Check size={16} /> {isEditMode ? 'Save Team' : 'Start Match'}
           </button>
         )}
       </div>
@@ -394,7 +434,6 @@ export default function PreMatchSetup() {
 
             {/* Interchange — same max-width as oval */}
             <div className="flex-shrink-0 rounded-2xl p-3 transition-all duration-100"
-              style={{ width: 'calc((100vh - 250px) * 10/15)', maxWidth: '100%' }}
               style={{
                 background: selectedId && benchPlayers.length < matchData.bench_size
                   ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.025)',

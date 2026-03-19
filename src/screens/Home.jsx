@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/useGameStore'
-import { ChevronRight, Users, Clock } from 'lucide-react'
+import { ChevronRight, Users, Clock, RotateCcw, LayoutList } from 'lucide-react'
 
 function SharksWordmark() {
   return (
@@ -17,9 +17,17 @@ function SharksWordmark() {
 }
 
 export default function Home() {
-  const navigate = useNavigate()
+  const navigate     = useNavigate()
   const currentMatch = useGameStore(s => s.currentMatch)
-  const matches = useGameStore(s => s.matches)
+  const matches      = useGameStore(s => s.matches)
+  const restartMatch = useGameStore(s => s.restartMatch)
+
+  const handleRestart = () => {
+    if (window.confirm('Restart match? This will reset all timers and rotation history.')) {
+      restartMatch()
+      navigate('/match/live')
+    }
+  }
 
   return (
     <div className="h-screen flex items-center justify-center bg-sharks-dark overflow-hidden">
@@ -43,13 +51,35 @@ export default function Home() {
           </button>
 
           {currentMatch && (
-            <button
-              onClick={() => navigate('/match/setup')}
-              className="w-full h-14 bg-sharks-surface hover:bg-sharks-surface2 text-white font-condensed font-bold text-base uppercase tracking-widest rounded-xl flex items-center justify-between px-6 transition-colors border border-sharks-border"
-            >
-              New Match
-              <ChevronRight size={20} className="text-gray-400" />
-            </button>
+            <>
+              <button
+                onClick={() => navigate('/match/setup?edit=true')}
+                className="w-full h-14 bg-sharks-surface hover:bg-sharks-surface2 text-white font-condensed font-bold text-base uppercase tracking-widest rounded-xl flex items-center justify-between px-6 transition-colors border border-sharks-border"
+              >
+                <span className="flex items-center gap-3">
+                  <LayoutList size={18} className="text-gray-400" />
+                  Change Team
+                </span>
+                <ChevronRight size={20} className="text-gray-400" />
+              </button>
+              <button
+                onClick={handleRestart}
+                className="w-full h-14 bg-sharks-surface hover:bg-sharks-surface2 text-white font-condensed font-bold text-base uppercase tracking-widest rounded-xl flex items-center justify-between px-6 transition-colors border border-sharks-border"
+              >
+                <span className="flex items-center gap-3">
+                  <RotateCcw size={18} className="text-gray-400" />
+                  Restart Match
+                </span>
+                <ChevronRight size={20} className="text-gray-400" />
+              </button>
+              <button
+                onClick={() => navigate('/match/setup')}
+                className="w-full h-14 bg-sharks-surface hover:bg-sharks-surface2 text-white font-condensed font-bold text-base uppercase tracking-widest rounded-xl flex items-center justify-between px-6 transition-colors border border-sharks-border"
+              >
+                New Match
+                <ChevronRight size={20} className="text-gray-400" />
+              </button>
+            </>
           )}
 
           <button
