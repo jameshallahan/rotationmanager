@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { supabase } from '../lib/supabase'
 
 export const useGameStore = create((set, get) => ({
   // State
@@ -14,35 +15,88 @@ export const useGameStore = create((set, get) => ({
   showQuarterReport: false,
 
   // Player CRUD
-  addPlayer: (player) => set(s => ({ players: [...s.players, { ...player, id: Date.now().toString() }] })),
-  updatePlayer: (id, data) => set(s => ({ players: s.players.map(p => p.id === id ? { ...p, ...data } : p) })),
-  deletePlayer: (id) => set(s => ({ players: s.players.filter(p => p.id !== id) })),
+  addPlayer: (player) => {
+    const newPlayer = { ...player, id: Date.now().toString() }
+    set(s => ({ players: [...s.players, newPlayer] }))
+    if (supabase) {
+      supabase.from('players').insert(newPlayer)
+        .then(({ error }) => { if (error) console.error('addPlayer:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
+  },
+
+  updatePlayer: (id, data) => {
+    set(s => ({ players: s.players.map(p => p.id === id ? { ...p, ...data } : p) }))
+    if (supabase) {
+      supabase.from('players').update(data).eq('id', id)
+        .then(({ error }) => { if (error) console.error('updatePlayer:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
+  },
+
+  deletePlayer: (id) => {
+    set(s => ({ players: s.players.filter(p => p.id !== id) }))
+    if (supabase) {
+      supabase.from('players').delete().eq('id', id)
+        .then(({ error }) => { if (error) console.error('deletePlayer:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
+  },
 
   // Match management
   createMatch: (data) => {
-    const match = { ...data, id: Date.now().toString(), created_at: new Date().toISOString() }
-    set(s => ({ matches: [...s.matches, match], currentMatch: match, matchPlayers: [], rotationEvents: [], gameState: { quarter: 1, isRunning: false, quarterSeconds: 0 }, playerTimers: {} }))
+    const match = {
+      ...data,
+      id: Date.now().toString(),
+      created_at: new Date().toISOString(),
+      game_state: { quarter: 1, isRunning: false, quarterSeconds: 0 },
+      quarter_history: {},
+    }
+    set(s => ({
+      matches: [...s.matches, match],
+      currentMatch: match,
+      matchPlayers: [],
+      rotationEvents: [],
+      gameState: { quarter: 1, isRunning: false, quarterSeconds: 0 },
+      playerTimers: {},
+    }))
+    if (supabase) {
+      supabase.from('matches').insert(match)
+        .then(({ error }) => { if (error) console.error('createMatch:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
     return match
   },
-  setMatchPlayers: (matchPlayers) => set({ matchPlayers }),
+
+  setMatchPlayers: (matchPlayers) => {
+    set({ matchPlayers })
+    if (supabase) {
+      supabase.from('match_players').upsert(
+        matchPlayers.map(mp => ({ ...mp, player_timers: {} }))
+      ).then(({ error }) => { if (error) console.error('setMatchPlayers:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
+  },
 
   // Selection and rotation
   selectPlayer: (playerId) => {
     const { selectedPlayerId, matchPlayers, rotationEvents, gameState, playerTimers } = get()
 
     if (!selectedPlayerId) {
-      // First tap: select
       set({ selectedPlayerId: playerId })
       return
     }
 
     if (selectedPlayerId === playerId) {
-      // Tap same: deselect
       set({ selectedPlayerId: null })
       return
     }
 
-    // Second tap on different player: execute rotation/swap
     const player1Mp = matchPlayers.find(mp => mp.player_id === selectedPlayerId)
     const player2Mp = matchPlayers.find(mp => mp.player_id === playerId)
 
@@ -75,7 +129,6 @@ export const useGameStore = create((set, get) => ({
       wall_time: now.toISOString(),
     }
 
-    // Swap positions
     const newMatchPlayers = matchPlayers.map(mp => {
       if (mp.player_id === selectedPlayerId) return { ...mp, current_position: toPos }
       if (mp.player_id === playerId) return { ...mp, current_position: fromPos }
@@ -88,33 +141,61 @@ export const useGameStore = create((set, get) => ({
       selectedPlayerId: null,
     })
 
-    // Update playerTimers to reflect new positions
     const newTimers = { ...playerTimers }
     if (newTimers[selectedPlayerId]) newTimers[selectedPlayerId] = { ...newTimers[selectedPlayerId], lastTickPosition: toPos }
     if (newTimers[playerId]) newTimers[playerId] = { ...newTimers[playerId], lastTickPosition: fromPos }
     set({ playerTimers: newTimers })
 
-    get().saveToLocalStorage()
+    if (supabase) {
+      const mp1 = newMatchPlayers.find(mp => mp.player_id === selectedPlayerId)
+      const mp2 = newMatchPlayers.find(mp => mp.player_id === playerId)
+      Promise.all([
+        supabase.from('rotation_events').insert([event1, event2]),
+        supabase.from('match_players').upsert([
+          { match_id: mp1.match_id, player_id: mp1.player_id, current_position: mp1.current_position, status: mp1.status, player_timers: newTimers[mp1.player_id] || {} },
+          { match_id: mp2.match_id, player_id: mp2.player_id, current_position: mp2.current_position, status: mp2.status, player_timers: newTimers[mp2.player_id] || {} },
+        ]),
+      ]).then(([evRes, mpRes]) => {
+        if (evRes.error) console.error('rotation_events insert:', evRes.error)
+        if (mpRes.error) console.error('match_players upsert:', mpRes.error)
+      })
+    } else {
+      get().saveToLocalStorage()
+    }
   },
 
   markInjured: (playerId) => {
     const { matchPlayers } = get()
-    set({
-      matchPlayers: matchPlayers.map(mp =>
-        mp.player_id === playerId ? { ...mp, status: 'INJURED', current_position: 'BENCH' } : mp
-      )
-    })
-    get().saveToLocalStorage()
+    const updated = matchPlayers.map(mp =>
+      mp.player_id === playerId ? { ...mp, status: 'INJURED', current_position: 'BENCH' } : mp
+    )
+    set({ matchPlayers: updated })
+    if (supabase) {
+      const mp = updated.find(m => m.player_id === playerId)
+      supabase.from('match_players')
+        .update({ status: 'INJURED', current_position: 'BENCH' })
+        .eq('match_id', mp.match_id).eq('player_id', playerId)
+        .then(({ error }) => { if (error) console.error('markInjured:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
   },
 
   returnFromInjury: (playerId) => {
     const { matchPlayers } = get()
-    set({
-      matchPlayers: matchPlayers.map(mp =>
-        mp.player_id === playerId ? { ...mp, status: 'ACTIVE' } : mp
-      )
-    })
-    get().saveToLocalStorage()
+    const updated = matchPlayers.map(mp =>
+      mp.player_id === playerId ? { ...mp, status: 'ACTIVE' } : mp
+    )
+    set({ matchPlayers: updated })
+    if (supabase) {
+      const mp = updated.find(m => m.player_id === playerId)
+      supabase.from('match_players')
+        .update({ status: 'ACTIVE' })
+        .eq('match_id', mp.match_id).eq('player_id', playerId)
+        .then(({ error }) => { if (error) console.error('returnFromInjury:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
   },
 
   // Game clock
@@ -143,23 +224,75 @@ export const useGameStore = create((set, get) => ({
 
   startQuarter: () => {
     set(s => ({ gameState: { ...s.gameState, isRunning: true } }))
-    get().saveToLocalStorage()
+    if (supabase) {
+      const { currentMatch, gameState } = get()
+      supabase.from('matches')
+        .update({ game_state: { ...gameState, isRunning: true } })
+        .eq('id', currentMatch.id)
+        .then(({ error }) => { if (error) console.error('startQuarter:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
   },
 
   pauseQuarter: () => {
     set(s => ({ gameState: { ...s.gameState, isRunning: false } }))
-    get().saveToLocalStorage()
+    if (supabase) {
+      const { currentMatch, gameState, matchPlayers, playerTimers } = get()
+      const gs = { ...gameState, isRunning: false }
+      Promise.all([
+        supabase.from('matches').update({ game_state: gs }).eq('id', currentMatch.id),
+        supabase.from('match_players').upsert(
+          matchPlayers.map(mp => ({
+            match_id: mp.match_id,
+            player_id: mp.player_id,
+            current_position: mp.current_position,
+            status: mp.status,
+            player_timers: playerTimers[mp.player_id] || {},
+          }))
+        ),
+      ]).then(([gsRes, mpRes]) => {
+        if (gsRes.error) console.error('pauseQuarter game_state:', gsRes.error)
+        if (mpRes.error) console.error('pauseQuarter match_players:', mpRes.error)
+      })
+    } else {
+      get().saveToLocalStorage()
+    }
   },
 
   endQuarter: () => {
-    const { gameState, playerTimers, quarterHistory } = get()
+    const { gameState, playerTimers, quarterHistory, currentMatch, matchPlayers } = get()
     const report = { quarter: gameState.quarter, playerTimers: { ...playerTimers }, quarterSeconds: gameState.quarterSeconds }
-    set(s => ({
-      gameState: { ...s.gameState, isRunning: false },
-      quarterHistory: { ...quarterHistory, [gameState.quarter]: report },
+    const newQuarterHistory = { ...quarterHistory, [gameState.quarter]: report }
+    const newGameState = { ...gameState, isRunning: false }
+
+    set({
+      gameState: newGameState,
+      quarterHistory: newQuarterHistory,
       showQuarterReport: true,
-    }))
-    get().saveToLocalStorage()
+    })
+
+    if (supabase) {
+      Promise.all([
+        supabase.from('matches')
+          .update({ game_state: newGameState, quarter_history: newQuarterHistory })
+          .eq('id', currentMatch.id),
+        supabase.from('match_players').upsert(
+          matchPlayers.map(mp => ({
+            match_id: mp.match_id,
+            player_id: mp.player_id,
+            current_position: mp.current_position,
+            status: mp.status,
+            player_timers: playerTimers[mp.player_id] || {},
+          }))
+        ),
+      ]).then(([gsRes, mpRes]) => {
+        if (gsRes.error) console.error('endQuarter game_state:', gsRes.error)
+        if (mpRes.error) console.error('endQuarter match_players:', mpRes.error)
+      })
+    } else {
+      get().saveToLocalStorage()
+    }
   },
 
   startNextQuarter: () => {
@@ -172,7 +305,7 @@ export const useGameStore = create((set, get) => ({
 
   dismissQuarterReport: () => set({ showQuarterReport: false }),
 
-  // LocalStorage
+  // LocalStorage (fallback when Supabase not configured)
   saveToLocalStorage: () => {
     const { players, matches, currentMatch, matchPlayers, rotationEvents, gameState, playerTimers, quarterHistory } = get()
     try {
@@ -183,10 +316,59 @@ export const useGameStore = create((set, get) => ({
   loadFromLocalStorage: () => {
     try {
       const data = localStorage.getItem('rotationiq')
-      if (data) {
-        const parsed = JSON.parse(data)
-        set(parsed)
-      }
+      if (data) set(JSON.parse(data))
     } catch (e) { console.warn('localStorage load failed', e) }
+  },
+
+  // Primary load — fetches from Supabase, falls back to localStorage
+  loadData: async () => {
+    if (!supabase) {
+      get().loadFromLocalStorage()
+      return
+    }
+    try {
+      const [playersRes, matchesRes] = await Promise.all([
+        supabase.from('players').select('*').order('number'),
+        supabase.from('matches').select('*').order('created_at', { ascending: false }),
+      ])
+      if (playersRes.error) throw playersRes.error
+      if (matchesRes.error) throw matchesRes.error
+
+      const players = playersRes.data || []
+      const matches = matchesRes.data || []
+      const currentMatch = matches[0] || null
+
+      let matchPlayers = []
+      let rotationEvents = []
+      let playerTimers = {}
+
+      if (currentMatch) {
+        const [mpRes, eventsRes] = await Promise.all([
+          supabase.from('match_players').select('*').eq('match_id', currentMatch.id),
+          supabase.from('rotation_events').select('*').eq('match_id', currentMatch.id).order('wall_time'),
+        ])
+        matchPlayers = mpRes.data || []
+        rotationEvents = eventsRes.data || []
+        matchPlayers.forEach(mp => {
+          if (mp.player_timers && Object.keys(mp.player_timers).length > 0) {
+            playerTimers[mp.player_id] = mp.player_timers
+          }
+        })
+      }
+
+      set({
+        players,
+        matches,
+        currentMatch,
+        matchPlayers,
+        rotationEvents,
+        playerTimers,
+        gameState: currentMatch?.game_state || { quarter: 1, isRunning: false, quarterSeconds: 0 },
+        quarterHistory: currentMatch?.quarter_history || {},
+      })
+    } catch (e) {
+      console.error('Supabase loadData failed, falling back to localStorage:', e)
+      get().loadFromLocalStorage()
+    }
   },
 }))
