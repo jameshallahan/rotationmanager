@@ -1,72 +1,104 @@
 import PlayerCard from './PlayerCard'
+import { ZONE_POSITIONS, POS_LABEL } from '../lib/positions'
 
 const ZONE_CONFIG = {
   FORWARD: {
-    label: 'FORWARD ZONE',
+    label: 'FORWARD',
     labelColor: 'text-red-400',
     borderColor: 'border-red-900/30',
     bgColor: 'bg-red-950/20',
-    count: 6,
+    emptyBorder: 'border-red-900/25',
   },
   MIDFIELD: {
-    label: 'MIDFIELD ZONE',
+    label: 'MIDFIELD',
     labelColor: 'text-green-400',
     borderColor: 'border-green-900/30',
     bgColor: 'bg-green-950/20',
-    count: 6,
+    emptyBorder: 'border-green-900/25',
   },
   DEFENCE: {
-    label: 'DEFENCE ZONE',
+    label: 'DEFENCE',
     labelColor: 'text-indigo-400',
     borderColor: 'border-indigo-900/30',
     bgColor: 'bg-indigo-950/20',
-    count: 6,
+    emptyBorder: 'border-indigo-900/25',
   },
 }
 
 export default function FieldZone({ zone, players, matchPlayers, playerTimers, selectedPlayerId, onSelectPlayer }) {
   const config = ZONE_CONFIG[zone]
+  const slots = ZONE_POSITIONS[zone] // [{id, short, label}]
+
+  // Players currently in this zone (not injured)
   const zonePlayers = players.filter(p => {
-    const mp = matchPlayers.find(mp => mp.player_id === p.id)
+    const mp = matchPlayers.find(m => m.player_id === p.id)
     return mp && mp.current_position === zone && mp.status !== 'INJURED'
+  })
+
+  // Step 1: assign players to their home named slot
+  const slotMap = {} // posId → player
+  const unslotted = []
+
+  zonePlayers.forEach(p => {
+    const mp = matchPlayers.find(m => m.player_id === p.id)
+    const namedPos = mp?.named_position
+    if (namedPos && slots.some(s => s.id === namedPos) && !slotMap[namedPos]) {
+      slotMap[namedPos] = p
+    } else {
+      unslotted.push(p) // visitor from another zone, or no named position
+    }
+  })
+
+  // Step 2: fill empty slots with unslotted players (visitors fill in order)
+  const emptySlots = slots.filter(s => !slotMap[s.id])
+  unslotted.forEach((p, i) => {
+    if (emptySlots[i]) slotMap[emptySlots[i].id] = p
   })
 
   return (
     <div className={`flex-1 rounded-xl border ${config.borderColor} ${config.bgColor} p-2 flex flex-col min-h-0`}>
       {/* Zone header */}
-      <div className="flex items-center justify-between mb-2 px-1">
+      <div className="flex items-center justify-between mb-1.5 px-1">
         <span className={`font-condensed font-bold text-xs uppercase tracking-widest ${config.labelColor}`}>
           {config.label}
         </span>
         <span className={`font-condensed text-xs ${zonePlayers.length === 6 ? config.labelColor : 'text-yellow-500'}`}>
-          {zonePlayers.length}/{config.count}
+          {zonePlayers.length}/6
         </span>
       </div>
 
-      {/* Players grid */}
-      <div className="flex-1 grid grid-cols-3 grid-rows-2 gap-2 min-h-0">
-        {zonePlayers.map(player => {
-          const mp = matchPlayers.find(mp => mp.player_id === player.id)
-          const timer = playerTimers[player.id]
+      {/* 3×2 named position grid */}
+      <div className="flex-1 grid grid-cols-3 grid-rows-2 gap-1.5 min-h-0">
+        {slots.map(pos => {
+          const player = slotMap[pos.id] || null
+          const mp = player ? matchPlayers.find(m => m.player_id === player.id) : null
+          const timer = player ? playerTimers[player.id] : null
+
           return (
-            <PlayerCard
-              key={player.id}
-              player={player}
-              matchPlayer={mp}
-              togSeconds={timer?.togSeconds}
-              benchSeconds={timer?.zoneSeconds?.BENCH}
-              isSelected={selectedPlayerId === player.id}
-              onSelect={onSelectPlayer}
-            />
+            <div key={pos.id} className="flex flex-col min-h-0">
+              {/* Position label */}
+              <span className={`font-condensed text-[9px] font-bold uppercase tracking-wider px-0.5 mb-0.5 truncate leading-none ${player ? config.labelColor : config.labelColor} opacity-${player ? '60' : '30'}`}>
+                {POS_LABEL[pos.id]}
+              </span>
+
+              {player ? (
+                <div className="flex-1 min-h-0">
+                  <PlayerCard
+                    player={player}
+                    matchPlayer={mp}
+                    togSeconds={timer?.togSeconds}
+                    benchSeconds={timer?.zoneSeconds?.BENCH}
+                    stintSeconds={timer?.stintSeconds}
+                    isSelected={selectedPlayerId === player.id}
+                    onSelect={onSelectPlayer}
+                  />
+                </div>
+              ) : (
+                <div className={`flex-1 rounded-lg border-2 border-dashed ${config.emptyBorder} opacity-25 min-h-[60px]`} />
+              )}
+            </div>
           )
         })}
-        {/* Empty slots */}
-        {Array.from({ length: Math.max(0, 6 - zonePlayers.length) }).map((_, i) => (
-          <div
-            key={`empty-${i}`}
-            className={`rounded-lg border-2 border-dashed ${config.borderColor} opacity-30 min-h-[80px]`}
-          />
-        ))}
       </div>
     </div>
   )

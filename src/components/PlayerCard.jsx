@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Heart } from 'lucide-react'
+import { POS_LABEL } from '../lib/positions'
 
 const formatTime = (s) => {
   const sec = s || 0
@@ -37,11 +38,12 @@ const ZONE_STYLES = {
   },
 }
 
-export default function PlayerCard({ player, matchPlayer, togSeconds, benchSeconds, isSelected, onSelect, compact }) {
+export default function PlayerCard({ player, matchPlayer, togSeconds, benchSeconds, stintSeconds, isSelected, onSelect, compact }) {
   const [flash, setFlash] = useState(false)
   const position = matchPlayer?.current_position || 'BENCH'
   const isInjured = matchPlayer?.status === 'INJURED'
   const style = ZONE_STYLES[position] || ZONE_STYLES.BENCH
+  const positionLabel = matchPlayer?.named_position ? POS_LABEL[matchPlayer.named_position] : style.label
 
   useEffect(() => {
     if (!isSelected && flash) return
@@ -76,10 +78,10 @@ export default function PlayerCard({ player, matchPlayer, togSeconds, benchSecon
         {player.last_name}
       </div>
 
-      {/* Zone badge */}
+      {/* Position label */}
       {!compact && (
-        <div className={`font-condensed text-xs font-semibold mt-1 ${isInjured ? 'text-gray-600' : style.labelColor}`}>
-          {style.label}
+        <div className={`font-condensed text-xs font-semibold mt-1 leading-tight ${isInjured ? 'text-gray-600' : style.labelColor}`}>
+          {positionLabel}
         </div>
       )}
 

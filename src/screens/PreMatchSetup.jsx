@@ -2,32 +2,15 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Check, Plus, Minus, Home } from 'lucide-react'
 import { useGameStore } from '../store/useGameStore'
+import { ZONE_POSITIONS as ZONE_POS_CONFIG, POS_TO_ZONE } from '../lib/positions'
 
-// Named positions per zone — 2 rows × 3 cols each
-const ZONE_POSITIONS = {
-  DEFENCE: [
-    { id: 'DEF_LBP', label: 'LBP' }, { id: 'DEF_FB',  label: 'FB'  }, { id: 'DEF_RBP', label: 'RBP' },
-    { id: 'DEF_LHB', label: 'LHB' }, { id: 'DEF_CHB', label: 'CHB' }, { id: 'DEF_RHB', label: 'RHB' },
-  ],
-  MIDFIELD: [
-    { id: 'MID_LW', label: 'LW' }, { id: 'MID_C',  label: 'C'  }, { id: 'MID_RW', label: 'RW' },
-    { id: 'MID_RR', label: 'RR' }, { id: 'MID_RK', label: 'RK' }, { id: 'MID_RV', label: 'RV' },
-  ],
-  FORWARD: [
-    { id: 'FWD_LHF', label: 'LHF' }, { id: 'FWD_CHF', label: 'CHF' }, { id: 'FWD_RHF', label: 'RHF' },
-    { id: 'FWD_LFP', label: 'LFP' }, { id: 'FWD_FF',  label: 'FF'  }, { id: 'FWD_RFP', label: 'RFP' },
-  ],
-}
-
-// Map named position → zone for game store
-const POS_TO_ZONE = {
-  DEF_LBP: 'DEFENCE', DEF_FB: 'DEFENCE', DEF_RBP: 'DEFENCE',
-  DEF_LHB: 'DEFENCE', DEF_CHB: 'DEFENCE', DEF_RHB: 'DEFENCE',
-  MID_LW: 'MIDFIELD', MID_C: 'MIDFIELD', MID_RW: 'MIDFIELD',
-  MID_RR: 'MIDFIELD', MID_RK: 'MIDFIELD', MID_RV: 'MIDFIELD',
-  FWD_LHF: 'FORWARD', FWD_CHF: 'FORWARD', FWD_RHF: 'FORWARD',
-  FWD_LFP: 'FORWARD', FWD_FF: 'FORWARD', FWD_RFP: 'FORWARD',
-}
+// Flatten to the shape used in this file: { id, label (short) }
+const ZONE_POSITIONS = Object.fromEntries(
+  Object.entries(ZONE_POS_CONFIG).map(([zone, positions]) => [
+    zone,
+    positions.map(p => ({ id: p.id, label: p.short })),
+  ])
+)
 
 const CHIP_BG   = 'rgba(18, 22, 30, 0.88)'
 const CHIP_RING = 'rgba(255,255,255,0.16)'
@@ -182,6 +165,7 @@ export default function PreMatchSetup() {
       Object.entries(assignments).map(([player_id, posId]) => ({
         player_id, match_id: currentMatch.id,
         current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
+        named_position: posId === 'BENCH' ? null : posId,
         status: 'ACTIVE',
       }))
     )
