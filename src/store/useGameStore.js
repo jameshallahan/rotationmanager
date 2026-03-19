@@ -157,9 +157,11 @@ export const useGameStore = create((set, get) => ({
       wall_time: now.toISOString(),
     }
 
+    // Swap both zone (current_position) AND named slot (named_position) so
+    // players are always pinned to the slot they physically moved into.
     const newMatchPlayers = matchPlayers.map(mp => {
-      if (mp.player_id === selectedPlayerId) return { ...mp, current_position: toPos }
-      if (mp.player_id === playerId) return { ...mp, current_position: fromPos }
+      if (mp.player_id === selectedPlayerId) return { ...mp, current_position: toPos, named_position: player2Mp.named_position }
+      if (mp.player_id === playerId) return { ...mp, current_position: fromPos, named_position: player1Mp.named_position }
       return mp
     })
 
@@ -180,8 +182,8 @@ export const useGameStore = create((set, get) => ({
       Promise.all([
         supabase.from('rotation_events').insert([event1, event2]),
         supabase.from('match_players').upsert([
-          { match_id: mp1.match_id, player_id: mp1.player_id, current_position: mp1.current_position, status: mp1.status, player_timers: newTimers[mp1.player_id] || {} },
-          { match_id: mp2.match_id, player_id: mp2.player_id, current_position: mp2.current_position, status: mp2.status, player_timers: newTimers[mp2.player_id] || {} },
+          { match_id: mp1.match_id, player_id: mp1.player_id, current_position: mp1.current_position, named_position: mp1.named_position, status: mp1.status, player_timers: newTimers[mp1.player_id] || {} },
+          { match_id: mp2.match_id, player_id: mp2.player_id, current_position: mp2.current_position, named_position: mp2.named_position, status: mp2.status, player_timers: newTimers[mp2.player_id] || {} },
         ]),
       ]).then(([evRes, mpRes]) => {
         if (evRes.error) console.error('rotation_events insert:', evRes.error)

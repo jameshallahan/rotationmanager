@@ -35,24 +35,16 @@ export default function FieldZone({ zone, players, matchPlayers, playerTimers, s
     return mp && mp.current_position === zone && mp.status !== 'INJURED'
   })
 
-  // Step 1: assign players to their home named slot
-  const slotMap = {} // posId → player
-  const unslotted = []
-
+  // Map each player to their exact named slot — no fallback filling.
+  // named_position is always swapped along with current_position on rotation,
+  // so every player in this zone should match a slot here exactly.
+  const slotMap = {}
   zonePlayers.forEach(p => {
     const mp = matchPlayers.find(m => m.player_id === p.id)
     const namedPos = mp?.named_position
-    if (namedPos && slots.some(s => s.id === namedPos) && !slotMap[namedPos]) {
+    if (namedPos && slots.some(s => s.id === namedPos)) {
       slotMap[namedPos] = p
-    } else {
-      unslotted.push(p) // visitor from another zone, or no named position
     }
-  })
-
-  // Step 2: fill empty slots with unslotted players (visitors fill in order)
-  const emptySlots = slots.filter(s => !slotMap[s.id])
-  unslotted.forEach((p, i) => {
-    if (emptySlots[i]) slotMap[emptySlots[i].id] = p
   })
 
   return (

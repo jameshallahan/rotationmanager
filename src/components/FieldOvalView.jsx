@@ -88,22 +88,12 @@ function buildSlotMap(zoneName, players, matchPlayers) {
   })
 
   const slotMap = {}
-  const unslotted = []
-
   zonePlayers.forEach(p => {
     const mp = matchPlayers.find(m => m.player_id === p.id)
     const namedPos = mp?.named_position
-    if (namedPos && slots.some(s => s.id === namedPos) && !slotMap[namedPos]) {
+    if (namedPos && slots.some(s => s.id === namedPos)) {
       slotMap[namedPos] = p
-    } else {
-      unslotted.push(p)
     }
-  })
-
-  // Visiting players (rotated from another zone) fill empty slots in order
-  const emptySlots = slots.filter(s => !slotMap[s.id])
-  unslotted.forEach((p, i) => {
-    if (emptySlots[i]) slotMap[emptySlots[i].id] = p
   })
 
   return slotMap
