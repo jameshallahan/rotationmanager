@@ -19,38 +19,55 @@ const ZONE_ACCENT = {
   BENCH:    { glow: 'rgba(107,114,128,0.35)', ring: 'rgba(107,114,128,0.6)', dim: 'rgba(107,114,128,0.12)' },
 }
 
-// Chip shown on the field for a placed player
+// Horizontal player card on the field
 function FieldChip({ player, onRemove }) {
+  const initial = player.first_name.charAt(0).toUpperCase()
   return (
     <button
       onClick={e => { e.stopPropagation(); onRemove(player.id) }}
-      className="flex flex-col items-center rounded-md transition-all hover:brightness-125 active:scale-90"
+      className="w-full flex items-center gap-1.5 rounded-md transition-all hover:brightness-110 active:scale-95"
       style={{
-        background: POS[player.primary_position].color,
-        minWidth: '2.5rem',
-        paddingTop: 3, paddingBottom: 3, paddingLeft: 5, paddingRight: 5,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+        background: 'rgba(10,15,20,0.80)',
+        border: '1px solid rgba(255,255,255,0.14)',
+        padding: '3px 5px',
+        height: 34,
+        boxShadow: '0 1px 5px rgba(0,0,0,0.6)',
       }}
     >
-      <span className="font-condensed font-black text-white leading-none" style={{ fontSize: 15 }}>
-        {player.number}
-      </span>
-      <span className="font-condensed text-white/80 leading-none tracking-wide uppercase" style={{ fontSize: 8 }}>
-        {player.last_name.slice(0, 5)}
-      </span>
+      {/* Jersey number badge */}
+      <div
+        className="flex-shrink-0 flex items-center justify-center rounded"
+        style={{
+          background: POS[player.primary_position].color,
+          minWidth: 22, height: 22, padding: '0 3px',
+        }}
+      >
+        <span className="font-condensed font-black text-white leading-none" style={{ fontSize: 12 }}>
+          {player.number}
+        </span>
+      </div>
+      {/* Name + position */}
+      <div className="flex flex-col items-start min-w-0 flex-1">
+        <span className="font-condensed font-bold text-white uppercase leading-none truncate w-full" style={{ fontSize: 10 }}>
+          {initial}.{player.last_name}
+        </span>
+        <span className="font-condensed font-bold leading-none" style={{ fontSize: 8, color: POS[player.primary_position].color }}>
+          {POS[player.primary_position].label}
+        </span>
+      </div>
     </button>
   )
 }
 
-// Empty spot on the field
+// Empty spot — same size as a chip
 function EmptySpot() {
   return (
     <div
-      className="rounded-md flex items-center justify-center"
+      className="w-full rounded-md"
       style={{
-        minWidth: '2.5rem', height: '2.25rem',
-        border: '1.5px dashed rgba(255,255,255,0.18)',
-        background: 'rgba(0,0,0,0.12)',
+        height: 34,
+        border: '1.5px dashed rgba(255,255,255,0.15)',
+        background: 'rgba(0,0,0,0.1)',
       }}
     />
   )
@@ -84,7 +101,6 @@ function FieldZone({ zone, players, benchSize, isZoneFull, selectedId, onTapZone
           gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
           gap: '4px',
           width: '100%',
-          justifyItems: 'center',
         }}
       >
         {zps.map(p => <FieldChip key={p.id} player={p} onRemove={onRemove} />)}
@@ -426,9 +442,9 @@ export default function PreMatchSetup() {
                 selectedId={selectedId}
                 onTapZone={handleTapZone}
                 onRemove={handleRemoveFromField}
-                padH="20%"
-                padTop="12%"
-                padBottom="4%"
+                padH="10%"
+                padTop="10%"
+                padBottom="3%"
               />
 
               {/* ── MIDFIELD zone (centre third) ── */}
@@ -440,9 +456,9 @@ export default function PreMatchSetup() {
                 selectedId={selectedId}
                 onTapZone={handleTapZone}
                 onRemove={handleRemoveFromField}
-                padH="6%"
-                padTop="4%"
-                padBottom="4%"
+                padH="4%"
+                padTop="3%"
+                padBottom="3%"
               />
 
               {/* ── FORWARD zone (bottom third) ── */}
@@ -454,9 +470,9 @@ export default function PreMatchSetup() {
                 selectedId={selectedId}
                 onTapZone={handleTapZone}
                 onRemove={handleRemoveFromField}
-                padH="20%"
-                padTop="4%"
-                padBottom="12%"
+                padH="10%"
+                padTop="3%"
+                padBottom="10%"
               />
             </div>
 
