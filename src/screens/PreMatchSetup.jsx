@@ -38,28 +38,28 @@ function FilledSlot({ player, posLabel, onRemove }) {
   return (
     <button
       onClick={e => { e.stopPropagation(); onRemove(player.id) }}
-      className="w-full flex items-center gap-1.5 rounded-lg transition-all active:scale-95"
+      className="w-full flex items-center gap-2 rounded-lg transition-all active:scale-95"
       style={{
         background: CHIP_BG,
         border: `1px solid ${CHIP_RING}`,
-        padding: '4px 6px',
-        height: 38,
+        padding: '5px 7px',
+        height: 44,
         boxShadow: '0 2px 6px rgba(0,0,0,0.55)',
       }}
     >
       {/* Jersey number */}
       <div className="flex-shrink-0 flex items-center justify-center rounded"
-        style={{ background: '#CC0000', minWidth: 24, height: 24, padding: '0 3px' }}>
-        <span className="font-condensed font-black text-white leading-none" style={{ fontSize: 13 }}>
+        style={{ background: '#CC0000', minWidth: 28, height: 28, padding: '0 4px' }}>
+        <span className="font-condensed font-black text-white leading-none" style={{ fontSize: 15 }}>
           {player.number}
         </span>
       </div>
       {/* Name + position label */}
       <div className="flex flex-col items-start min-w-0 flex-1">
-        <span className="font-condensed font-bold text-white uppercase leading-none w-full truncate" style={{ fontSize: 11 }}>
+        <span className="font-condensed font-bold text-white uppercase leading-none w-full truncate" style={{ fontSize: 13 }}>
           {initial}.{player.last_name}
         </span>
-        <span className="font-condensed font-bold text-gray-400 leading-none" style={{ fontSize: 9 }}>
+        <span className="font-condensed font-bold text-gray-400 leading-none" style={{ fontSize: 10 }}>
           {posLabel}
         </span>
       </div>
@@ -74,13 +74,13 @@ function EmptySlot({ label, canDrop, onClick }) {
       onClick={onClick}
       className="w-full flex flex-col items-center justify-center rounded-lg transition-all"
       style={{
-        height: 38,
+        height: 44,
         border: `1.5px dashed ${canDrop ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.18)'}`,
         background: canDrop ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.12)',
         cursor: canDrop ? 'pointer' : 'default',
       }}
     >
-      <span className="font-condensed font-black text-gray-500 uppercase tracking-wide" style={{ fontSize: 10 }}>
+      <span className="font-condensed font-black text-gray-500 uppercase tracking-wide" style={{ fontSize: 11 }}>
         {label}
       </span>
     </button>
@@ -159,7 +159,7 @@ export default function PreMatchSetup() {
         className="flex flex-col justify-center"
         style={{ flex: 1, padding: `${padTop} ${padH} ${padBottom}` }}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 5 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
           {positions.map(pos => {
             const occupantId = posToPlayer[pos.id]
             const occupant   = occupantId ? activePlayers.find(p => p.id === occupantId) : null
@@ -314,10 +314,10 @@ export default function PreMatchSetup() {
           </div>
 
           {/* Right: field */}
-          <div className="flex-1 overflow-auto flex flex-col items-center py-3 px-3 gap-2">
+          <div className="flex-1 overflow-hidden flex flex-col items-center py-3 px-3 gap-2">
 
             {/* Hint */}
-            <div className="h-5 flex items-center justify-center flex-shrink-0 w-full">
+            <div className="flex-shrink-0 h-5 flex items-center justify-center w-full">
               {selectedPlayer ? (
                 <p className="font-condensed text-xs text-gray-400 text-center">
                   Placing <span className="font-black text-white">#{selectedPlayer.number} {selectedPlayer.first_name.charAt(0)}.{selectedPlayer.last_name}</span> — tap a position
@@ -327,12 +327,14 @@ export default function PreMatchSetup() {
               )}
             </div>
 
-            {/* AFL Oval — fills panel width */}
+            {/* AFL Oval — sized by height so it always fits on screen */}
             <div className="flex-shrink-0 relative overflow-hidden flex flex-col"
               style={{
-                width: '100%',
-                borderRadius: '50%',
+                /* Height fills screen minus: header(72) + hint(28) + interchange(110) + gaps+padding(40) */
+                height: 'calc(100vh - 250px)',
                 aspectRatio: '10 / 15',
+                maxWidth: '100%',
+                borderRadius: '50%',
                 background: 'linear-gradient(180deg, #14a347 0%, #16a34a 35%, #15803d 50%, #16a34a 65%, #14a347 100%)',
                 border: '3px solid rgba(255,255,255,0.15)',
                 boxShadow: '0 0 0 1px rgba(0,0,0,0.5), 0 12px 40px rgba(0,0,0,0.7)',
@@ -390,8 +392,9 @@ export default function PreMatchSetup() {
               {renderZone('FORWARD', '10%', '3%', '10%')}
             </div>
 
-            {/* Interchange */}
-            <div className="flex-shrink-0 rounded-2xl p-3 transition-all duration-100 w-full"
+            {/* Interchange — same max-width as oval */}
+            <div className="flex-shrink-0 rounded-2xl p-3 transition-all duration-100"
+              style={{ width: 'calc((100vh - 250px) * 10/15)', maxWidth: '100%' }}
               style={{
                 background: selectedId && benchPlayers.length < matchData.bench_size
                   ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.025)',
