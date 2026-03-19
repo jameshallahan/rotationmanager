@@ -30,7 +30,7 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen flex items-center justify-center bg-sharks-dark overflow-hidden">
+    <div className="min-h-dvh flex items-center justify-center bg-sharks-dark overflow-hidden py-8">
       {/* Background texture */}
       <div className="absolute inset-0 opacity-5" style={{
         backgroundImage: 'repeating-linear-gradient(45deg, #CC0000 0, #CC0000 1px, transparent 0, transparent 50%)',

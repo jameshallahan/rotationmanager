@@ -25,7 +25,7 @@ export default function GameDay() {
 
   if (!currentMatch) {
     return (
-      <div className="h-screen flex items-center justify-center bg-sharks-dark">
+      <div className="h-dvh flex items-center justify-center bg-sharks-dark">
         <div className="text-center">
           <p className="font-condensed text-gray-400 text-xl mb-4">No active match</p>
           <button onClick={() => navigate('/match/setup')} className="font-condensed font-bold px-6 py-3 bg-sharks-red text-white rounded-lg uppercase">
@@ -40,7 +40,7 @@ export default function GameDay() {
   const activePlayers = players.filter(p => matchPlayerIds.has(p.id))
 
   return (
-    <div className="h-screen flex flex-col bg-sharks-dark overflow-hidden">
+    <div className="h-dvh flex flex-col bg-sharks-dark overflow-hidden">
       <Header />
 
       {/* View toggle + selection hint bar */}
@@ -77,8 +77,8 @@ export default function GameDay() {
 
       {/* Zone view */}
       {view === 'zones' && (
-        <div className="flex flex-1 overflow-hidden min-h-0">
-          <div className="flex-1 flex flex-col p-2 gap-2 overflow-hidden min-w-0">
+        <div className="flex flex-col sm:flex-row flex-1 overflow-hidden min-h-0">
+          <div className="flex-1 flex flex-col p-2 gap-2 overflow-hidden min-w-0 min-h-0">
             {['FORWARD', 'MIDFIELD', 'DEFENCE'].map(zone => (
               <FieldZone
                 key={zone}

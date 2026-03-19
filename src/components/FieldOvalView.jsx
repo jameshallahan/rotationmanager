@@ -141,7 +141,7 @@ export default function FieldOvalView() {
     <div className="flex flex-1 overflow-hidden min-h-0">
 
       {/* ── Left: Interchange + Injured ── */}
-      <div className="w-48 flex-shrink-0 flex flex-col border-r border-sharks-border bg-sharks-surface overflow-y-auto">
+      <div className="w-32 sm:w-48 flex-shrink-0 flex flex-col border-r border-sharks-border bg-sharks-surface overflow-y-auto">
 
         <div className="px-3 pt-3 pb-2 flex-shrink-0">
           <p className="font-condensed text-[10px] text-gray-500 uppercase tracking-widest">
@@ -217,7 +217,7 @@ export default function FieldOvalView() {
         <div
           className="flex-shrink-0 relative overflow-hidden flex flex-col"
           style={{
-            height: 'calc(100vh - 145px)',
+            height: 'calc(100dvh - 130px)',
             aspectRatio: '10 / 15',
             maxWidth: '100%',
             borderRadius: '50%',

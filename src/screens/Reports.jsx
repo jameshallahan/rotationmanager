@@ -55,7 +55,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-sharks-dark">
+    <div className="h-dvh flex flex-col bg-sharks-dark">
       <div className="flex items-center justify-between px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2">
@@ -81,7 +81,7 @@ export default function Reports() {
       </div>
 
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[480px] text-sm">
           <thead className="sticky top-0 bg-sharks-surface border-b border-sharks-border">
             <tr className="font-condensed font-bold text-xs text-gray-400 uppercase tracking-wider">
               <th className="px-4 py-3 text-left cursor-pointer hover:text-white" onClick={() => handleSort('number')}>

@@ -205,7 +205,7 @@ export default function RosterSetup() {
   const sortedPlayers = [...players].sort((a, b) => a.number - b.number)
 
   return (
-    <div className="h-screen flex flex-col bg-sharks-dark">
+    <div className="h-dvh flex flex-col bg-sharks-dark">
       {/* Header */}
       <div className="flex items-center justify-between px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
         <div className="flex items-center gap-4">

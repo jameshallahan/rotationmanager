@@ -202,7 +202,7 @@ export default function PreMatchSetup() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-sharks-dark">
+    <div className="h-dvh flex flex-col bg-sharks-dark">
 
       {/* Header */}
       <div className="flex items-center justify-between px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
@@ -302,7 +302,7 @@ export default function PreMatchSetup() {
         <div className="flex-1 flex overflow-hidden">
 
           {/* Left: unassigned players */}
-          <div className="w-36 flex-shrink-0 border-r border-sharks-border flex flex-col bg-sharks-surface">
+          <div className="w-28 sm:w-36 flex-shrink-0 border-r border-sharks-border flex flex-col bg-sharks-surface">
             <div className="px-3 py-2 border-b border-sharks-border flex-shrink-0">
               <p className="font-condensed text-[10px] text-gray-500 uppercase tracking-widest">
                 Unplaced · {unassigned.length}
@@ -355,8 +355,7 @@ export default function PreMatchSetup() {
             {/* AFL Oval — sized by height so it always fits on screen */}
             <div className="flex-shrink-0 relative overflow-hidden flex flex-col"
               style={{
-                /* Height fills screen minus: header(72) + hint(28) + interchange(110) + gaps+padding(40) */
-                height: 'calc(100vh - 250px)',
+                height: 'calc(100dvh - 230px)',
                 aspectRatio: '10 / 15',
                 maxWidth: '100%',
                 borderRadius: '50%',
