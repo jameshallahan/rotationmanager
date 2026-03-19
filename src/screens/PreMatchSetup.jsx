@@ -130,6 +130,17 @@ export default function PreMatchSetup() {
     return newAssignments
   })
   const [selectedId, setSelectedId] = useState(null)
+  // ID of the match created when the user advances from step 1 (non-edit mode)
+  const [createdMatchId, setCreatedMatchId] = useState(null)
+
+  const handleNext = () => {
+    if (!matchData.opponent.trim()) return
+    if (!isEditMode && !createdMatchId) {
+      const match = createMatch(matchData)
+      setCreatedMatchId(match.id)
+    }
+    setStep(2)
+  }
 
   const activePlayers = players.filter(p => p.active).sort((a, b) => a.number - b.number)
   const unassigned    = activePlayers.filter(p => !assignments[p.id])
@@ -170,24 +181,14 @@ export default function PreMatchSetup() {
 
   const handleStart = () => {
     if (!canStart) return
-    if (isEditMode && currentMatch) {
-      setMatchPlayers(
-        Object.entries(assignments).map(([player_id, posId]) => ({
-          player_id, match_id: currentMatch.id,
-          current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
-          status: 'ACTIVE',
-        }))
-      )
-    } else {
-      const match = createMatch(matchData)
-      setMatchPlayers(
-        Object.entries(assignments).map(([player_id, posId]) => ({
-          player_id, match_id: match.id,
-          current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
-          status: 'ACTIVE',
-        }))
-      )
-    }
+    const matchId = isEditMode ? currentMatch.id : createdMatchId
+    setMatchPlayers(
+      Object.entries(assignments).map(([player_id, posId]) => ({
+        player_id, match_id: matchId,
+        current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
+        status: 'ACTIVE',
+      }))
+    )
     navigate('/match/live')
   }
 
@@ -264,7 +265,7 @@ export default function PreMatchSetup() {
                 placeholder="e.g. East Fremantle FC"
                 value={matchData.opponent}
                 onChange={e => setMatchData(d => ({ ...d, opponent: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && matchData.opponent.trim() && setStep(2)}
+                onKeyDown={e => e.key === 'Enter' && handleNext()}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -302,7 +303,7 @@ export default function PreMatchSetup() {
                 {18 + matchData.bench_size} total players · 4–10 allowed
               </p>
             </div>
-            <button onClick={() => matchData.opponent.trim() && setStep(2)} disabled={!matchData.opponent.trim()}
+            <button onClick={handleNext} disabled={!matchData.opponent.trim()}
               className={`w-full h-12 rounded-xl font-condensed font-bold text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
                 matchData.opponent.trim() ? 'bg-sharks-red hover:bg-red-700 text-white' : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
               }`}>
