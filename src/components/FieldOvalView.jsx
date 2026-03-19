@@ -1,9 +1,25 @@
 import { useGameStore } from '../store/useGameStore'
+import { ZONE_POSITIONS } from '../lib/positions'
 
 const fmt = s => {
   const t = s || 0
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
 }
+
+const ZONE_GLOW = {
+  DEFENCE:  'rgba(79,70,229,0.18)',
+  MIDFIELD: 'rgba(5,150,105,0.18)',
+  FORWARD:  'rgba(220,38,38,0.18)',
+}
+
+const EMPTY_SLOT = (key) => (
+  <div key={key} style={{
+    height: 44,
+    border: '1.5px dashed rgba(255,255,255,0.1)',
+    background: 'rgba(0,0,0,0.1)',
+    borderRadius: 8,
+  }} />
+)
 
 // Player card used inside the oval and interchange
 function OvalPlayerCard({ player, matchPlayer, timer, isSelected, onSelect }) {
@@ -32,12 +48,11 @@ function OvalPlayerCard({ player, matchPlayer, timer, isSelected, onSelect }) {
         </span>
       </div>
 
-      {/* Name */}
+      {/* Name + timers */}
       <div className="flex-1 min-w-0 flex flex-col items-start">
         <span className="font-condensed font-bold text-white uppercase leading-none truncate w-full" style={{ fontSize: 12 }}>
           {player.first_name.charAt(0)}.{player.last_name}
         </span>
-        {/* Timers */}
         {isOnField ? (
           <div className="flex items-center gap-1.5 leading-none mt-0.5">
             <span className="font-condensed text-yellow-400 font-bold tabular-nums" style={{ fontSize: 10 }}>
@@ -57,7 +72,6 @@ function OvalPlayerCard({ player, matchPlayer, timer, isSelected, onSelect }) {
         )}
       </div>
 
-      {/* Selected ping */}
       {isSelected && (
         <div className="w-2 h-2 rounded-full bg-sharks-red animate-ping flex-shrink-0" />
       )}
@@ -65,18 +79,53 @@ function OvalPlayerCard({ player, matchPlayer, timer, isSelected, onSelect }) {
   )
 }
 
-// A zone section inside the oval
-function OvalZone({ zone, label, padH, padTop, padBottom, players, matchPlayers, playerTimers, selectedPlayerId, onSelect, canHighlight }) {
+// Build a slot map: named_position_id → player for players in this zone
+function buildSlotMap(zoneName, players, matchPlayers) {
+  const slots = ZONE_POSITIONS[zoneName]
   const zonePlayers = players.filter(p => {
     const mp = matchPlayers.find(m => m.player_id === p.id)
-    return mp && mp.current_position === zone && mp.status !== 'INJURED'
+    return mp && mp.current_position === zoneName && mp.status !== 'INJURED'
   })
-  const emptyCount = 6 - zonePlayers.length
 
-  const ZONE_GLOW = {
-    DEFENCE:  'rgba(79,70,229,0.18)',
-    MIDFIELD: 'rgba(5,150,105,0.18)',
-    FORWARD:  'rgba(220,38,38,0.18)',
+  const slotMap = {}
+  const unslotted = []
+
+  zonePlayers.forEach(p => {
+    const mp = matchPlayers.find(m => m.player_id === p.id)
+    const namedPos = mp?.named_position
+    if (namedPos && slots.some(s => s.id === namedPos) && !slotMap[namedPos]) {
+      slotMap[namedPos] = p
+    } else {
+      unslotted.push(p)
+    }
+  })
+
+  // Visiting players (rotated from another zone) fill empty slots in order
+  const emptySlots = slots.filter(s => !slotMap[s.id])
+  unslotted.forEach((p, i) => {
+    if (emptySlots[i]) slotMap[emptySlots[i].id] = p
+  })
+
+  return slotMap
+}
+
+// Zone renderer — handles midfield 1-4-1 and defence/forward 3×2 grid
+function OvalZone({ zone, label, padH, padTop, padBottom, players, matchPlayers, playerTimers, selectedPlayerId, onSelect, canHighlight }) {
+  const slotMap = buildSlotMap(zone, players, matchPlayers)
+
+  const card = (posId) => {
+    const p = slotMap[posId]
+    if (!p) return EMPTY_SLOT(posId)
+    return (
+      <OvalPlayerCard
+        key={p.id}
+        player={p}
+        matchPlayer={matchPlayers.find(m => m.player_id === p.id)}
+        timer={playerTimers[p.id]}
+        isSelected={selectedPlayerId === p.id}
+        onSelect={onSelect}
+      />
+    )
   }
 
   return (
@@ -91,36 +140,42 @@ function OvalZone({ zone, label, padH, padTop, padBottom, players, matchPlayers,
       <div className="font-condensed text-[9px] uppercase tracking-widest text-white/30 text-center mb-1">
         {label}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 4 }}>
-        {zonePlayers.map(p => (
-          <OvalPlayerCard
-            key={p.id}
-            player={p}
-            matchPlayer={matchPlayers.find(m => m.player_id === p.id)}
-            timer={playerTimers[p.id]}
-            isSelected={selectedPlayerId === p.id}
-            onSelect={onSelect}
-          />
-        ))}
-        {Array.from({ length: emptyCount }).map((_, i) => (
-          <div key={i} className="rounded-lg" style={{
-            height: 44,
-            border: '1.5px dashed rgba(255,255,255,0.1)',
-            background: 'rgba(0,0,0,0.1)',
-          }} />
-        ))}
-      </div>
+
+      {zone === 'MIDFIELD' ? (
+        // 1-4-1: LW | Ruck · Centre · Ruck Rover · Rover | RW
+        <div style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
+          {/* Left wing */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+            {card('MID_LW')}
+          </div>
+          {/* Centre 4 — stacked vertically */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {card('MID_RK')}
+            {card('MID_C')}
+            {card('MID_RR')}
+            {card('MID_RV')}
+          </div>
+          {/* Right wing */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+            {card('MID_RW')}
+          </div>
+        </div>
+      ) : (
+        // 3×2 grid for Defence and Forward
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 4 }}>
+          {ZONE_POSITIONS[zone].map(pos => card(pos.id))}
+        </div>
+      )}
     </div>
   )
 }
 
 export default function FieldOvalView() {
-  const players        = useGameStore(s => s.players)
-  const matchPlayers   = useGameStore(s => s.matchPlayers)
-  const playerTimers   = useGameStore(s => s.playerTimers)
+  const players          = useGameStore(s => s.players)
+  const matchPlayers     = useGameStore(s => s.matchPlayers)
+  const playerTimers     = useGameStore(s => s.playerTimers)
   const selectedPlayerId = useGameStore(s => s.selectedPlayerId)
-  const selectPlayer   = useGameStore(s => s.selectPlayer)
-  const markInjured    = useGameStore(s => s.markInjured)
+  const selectPlayer     = useGameStore(s => s.selectPlayer)
   const returnFromInjury = useGameStore(s => s.returnFromInjury)
 
   const matchPlayerIds = new Set(matchPlayers.map(m => m.player_id))
@@ -187,7 +242,7 @@ export default function FieldOvalView() {
         )}
 
         {/* Legend */}
-        <div className="mt-auto px-3 pb-3 pt-4 flex-shrink-0 border-t border-sharks-border/50 mt-4">
+        <div className="mt-auto px-3 pb-3 pt-4 flex-shrink-0 border-t border-sharks-border/50">
           <p className="font-condensed text-[9px] text-gray-600 uppercase tracking-widest mb-1">Timer legend</p>
           <div className="flex items-center gap-1.5 mb-0.5">
             <div className="w-2 h-2 rounded-full bg-yellow-400" />
