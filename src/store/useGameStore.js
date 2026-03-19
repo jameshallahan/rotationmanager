@@ -142,8 +142,8 @@ export const useGameStore = create((set, get) => ({
     })
 
     const newTimers = { ...playerTimers }
-    if (newTimers[selectedPlayerId]) newTimers[selectedPlayerId] = { ...newTimers[selectedPlayerId], lastTickPosition: toPos }
-    if (newTimers[playerId]) newTimers[playerId] = { ...newTimers[playerId], lastTickPosition: fromPos }
+    if (newTimers[selectedPlayerId]) newTimers[selectedPlayerId] = { ...newTimers[selectedPlayerId], lastTickPosition: toPos, stintSeconds: 0 }
+    if (newTimers[playerId]) newTimers[playerId] = { ...newTimers[playerId], lastTickPosition: fromPos, stintSeconds: 0 }
     set({ playerTimers: newTimers })
 
     if (supabase) {
@@ -209,12 +209,13 @@ export const useGameStore = create((set, get) => ({
     matchPlayers.forEach(mp => {
       if (mp.status === 'INJURED') return
       if (!newTimers[mp.player_id]) {
-        newTimers[mp.player_id] = { togSeconds: 0, zoneSeconds: { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }, lastTickPosition: mp.current_position }
+        newTimers[mp.player_id] = { togSeconds: 0, stintSeconds: 0, zoneSeconds: { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }, lastTickPosition: mp.current_position }
       }
       const timer = { ...newTimers[mp.player_id] }
       const pos = mp.current_position
       timer.zoneSeconds = { ...timer.zoneSeconds, [pos]: (timer.zoneSeconds[pos] || 0) + 1 }
       if (pos !== 'BENCH') timer.togSeconds = (timer.togSeconds || 0) + 1
+      timer.stintSeconds = (timer.stintSeconds || 0) + 1
       timer.lastTickPosition = pos
       newTimers[mp.player_id] = timer
     })
@@ -296,10 +297,16 @@ export const useGameStore = create((set, get) => ({
   },
 
   startNextQuarter: () => {
-    const { gameState } = get()
+    const { gameState, playerTimers } = get()
+    // Reset stint timers for all players at start of new quarter
+    const newTimers = {}
+    Object.entries(playerTimers).forEach(([id, t]) => {
+      newTimers[id] = { ...t, stintSeconds: 0 }
+    })
     set({
       gameState: { quarter: Math.min(gameState.quarter + 1, 4), isRunning: false, quarterSeconds: 0 },
       showQuarterReport: false,
+      playerTimers: newTimers,
     })
   },
 
