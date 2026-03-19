@@ -195,11 +195,17 @@ export const useGameStore = create((set, get) => ({
   },
 
   markInjured: (playerId) => {
-    const { matchPlayers } = get()
+    const { matchPlayers, playerTimers } = get()
     const updated = matchPlayers.map(mp =>
       mp.player_id === playerId ? { ...mp, status: 'INJURED', current_position: 'BENCH' } : mp
     )
-    set({ matchPlayers: updated })
+    const newTimers = { ...playerTimers }
+    if (newTimers[playerId]) {
+      newTimers[playerId] = { ...newTimers[playerId], injuredSeconds: 0, stintSeconds: 0 }
+    } else {
+      newTimers[playerId] = { togSeconds: 0, stintSeconds: 0, injuredSeconds: 0, zoneSeconds: { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }, lastTickPosition: 'BENCH' }
+    }
+    set({ matchPlayers: updated, playerTimers: newTimers, selectedPlayerId: null })
     if (supabase) {
       const mp = updated.find(m => m.player_id === playerId)
       supabase.from('match_players')
@@ -237,9 +243,17 @@ export const useGameStore = create((set, get) => ({
     const newTimers = { ...playerTimers }
 
     matchPlayers.forEach(mp => {
-      if (mp.status === 'INJURED') return
+      if (mp.status === 'INJURED') {
+        if (!newTimers[mp.player_id]) {
+          newTimers[mp.player_id] = { togSeconds: 0, stintSeconds: 0, injuredSeconds: 0, zoneSeconds: { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }, lastTickPosition: 'BENCH' }
+        }
+        const timer = { ...newTimers[mp.player_id] }
+        timer.injuredSeconds = (timer.injuredSeconds || 0) + 1
+        newTimers[mp.player_id] = timer
+        return
+      }
       if (!newTimers[mp.player_id]) {
-        newTimers[mp.player_id] = { togSeconds: 0, stintSeconds: 0, zoneSeconds: { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }, lastTickPosition: mp.current_position }
+        newTimers[mp.player_id] = { togSeconds: 0, stintSeconds: 0, injuredSeconds: 0, zoneSeconds: { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }, lastTickPosition: mp.current_position }
       }
       const timer = { ...newTimers[mp.player_id] }
       const pos = mp.current_position

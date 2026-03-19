@@ -7,7 +7,7 @@ import FieldZone from '../components/FieldZone'
 import BenchPanel from '../components/BenchPanel'
 import FieldOvalView from '../components/FieldOvalView'
 import QuarterReportModal from '../components/QuarterReportModal'
-import { LayoutGrid, Circle } from 'lucide-react'
+import { LayoutGrid, Circle, HeartCrack } from 'lucide-react'
 
 export default function GameDay() {
   const navigate = useNavigate()
@@ -19,6 +19,7 @@ export default function GameDay() {
   const showQuarterReport = useGameStore(s => s.showQuarterReport)
   const currentMatch = useGameStore(s => s.currentMatch)
 
+  const markInjured = useGameStore(s => s.markInjured)
   const [view, setView] = useState('zones') // 'zones' | 'field'
 
   useGameClock()
@@ -46,11 +47,19 @@ export default function GameDay() {
       {/* View toggle + selection hint bar */}
       <div className="flex items-center justify-between px-4 h-9 bg-sharks-surface border-b border-sharks-border flex-shrink-0">
         {/* Selection hint (left) */}
-        <div className="flex-1">
+        <div className="flex-1 flex items-center gap-2">
           {selectedPlayerId && (
-            <span className="font-condensed text-xs text-sharks-red uppercase tracking-widest">
-              Player selected — tap another to rotate
-            </span>
+            <>
+              <span className="font-condensed text-xs text-sharks-red uppercase tracking-widest">
+                Tap another to rotate
+              </span>
+              <button
+                onClick={() => markInjured(selectedPlayerId)}
+                className="flex items-center gap-1 px-2 h-6 rounded font-condensed font-bold text-xs uppercase tracking-wide bg-red-900/40 border border-red-800/60 text-red-400 hover:bg-red-900/60 transition-colors"
+              >
+                <HeartCrack size={10} /> Injured
+              </button>
+            </>
           )}
         </div>
 

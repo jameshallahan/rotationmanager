@@ -218,15 +218,23 @@ export default function FieldOvalView() {
               Injured
             </p>
             <div className="flex flex-col gap-2 px-2 flex-shrink-0">
-              {injuredPlayers.map(p => (
-                <button key={p.id}
-                  onClick={() => window.confirm(`Return ${p.first_name} ${p.last_name} to bench?`) && returnFromInjury(p.id)}
-                  className="flex items-center gap-2 p-2 rounded-lg opacity-60 hover:opacity-80 transition-opacity text-left"
-                  style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)' }}>
-                  <span className="font-condensed font-black text-red-400 text-lg">#{p.number}</span>
-                  <span className="font-condensed font-bold text-gray-400 text-sm uppercase">{p.last_name}</span>
-                </button>
-              ))}
+              {injuredPlayers.map(p => {
+                const injSecs = playerTimers[p.id]?.injuredSeconds || 0
+                const mins = Math.floor(injSecs / 60)
+                const secs = String(injSecs % 60).padStart(2, '0')
+                return (
+                  <button key={p.id}
+                    onClick={() => window.confirm(`Return ${p.first_name} ${p.last_name} to bench?`) && returnFromInjury(p.id)}
+                    className="flex items-center gap-2 p-2 rounded-lg opacity-60 hover:opacity-80 transition-opacity text-left"
+                    style={{ background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)' }}>
+                    <span className="font-condensed font-black text-red-400 text-lg">#{p.number}</span>
+                    <div>
+                      <div className="font-condensed font-bold text-gray-400 text-sm uppercase leading-none">{p.last_name}</div>
+                      <div className="font-condensed text-red-400 tabular-nums leading-none mt-0.5" style={{ fontSize: 10 }}>{mins}:{secs}</div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </>
         )}

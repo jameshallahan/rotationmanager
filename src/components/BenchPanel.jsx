@@ -73,23 +73,28 @@ export default function BenchPanel({ players, matchPlayers, playerTimers, select
             </span>
           </div>
           <div className="flex flex-col gap-2">
-            {injuredPlayers.map(player => (
-              <button
-                key={player.id}
-                onClick={() => {
-                  if (window.confirm(`Return ${player.first_name} ${player.last_name} to bench?`)) {
-                    returnFromInjury(player.id)
-                  }
-                }}
-                className="flex items-center gap-3 p-2 rounded-lg bg-sharks-surface border border-red-900/30 opacity-60 hover:opacity-80 transition-opacity text-left"
-              >
-                <span className="font-condensed font-black text-red-400 text-xl">#{player.number}</span>
-                <div>
-                  <div className="font-condensed font-bold text-sm text-gray-300 uppercase">{player.last_name}</div>
-                  <div className="font-condensed text-xs text-red-400">INJURED</div>
-                </div>
-              </button>
-            ))}
+            {injuredPlayers.map(player => {
+              const injSecs = playerTimers[player.id]?.injuredSeconds || 0
+              const mins = Math.floor(injSecs / 60)
+              const secs = String(injSecs % 60).padStart(2, '0')
+              return (
+                <button
+                  key={player.id}
+                  onClick={() => {
+                    if (window.confirm(`Return ${player.first_name} ${player.last_name} to bench?`)) {
+                      returnFromInjury(player.id)
+                    }
+                  }}
+                  className="flex items-center gap-3 p-2 rounded-lg bg-sharks-surface border border-red-900/30 opacity-60 hover:opacity-80 transition-opacity text-left"
+                >
+                  <span className="font-condensed font-black text-red-400 text-xl">#{player.number}</span>
+                  <div>
+                    <div className="font-condensed font-bold text-sm text-gray-300 uppercase">{player.last_name}</div>
+                    <div className="font-condensed text-xs text-red-400">INJURED · {mins}:{secs}</div>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
