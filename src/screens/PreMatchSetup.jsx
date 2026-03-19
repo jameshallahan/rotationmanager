@@ -3,148 +3,137 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Check, Plus, Minus } from 'lucide-react'
 import { useGameStore } from '../store/useGameStore'
 
-const ZONE_MAX = 6
-
-const POS = {
-  FORWARD:  { color: '#dc2626', label: 'FWD' },
-  MIDFIELD: { color: '#059669', label: 'MID' },
-  DEFENCE:  { color: '#4f46e5', label: 'DEF' },
-  BENCH:    { color: '#6b7280', label: 'INT' },
+// Named positions per zone — 2 rows × 3 cols each
+const ZONE_POSITIONS = {
+  DEFENCE: [
+    { id: 'DEF_LBP', label: 'LBP' }, { id: 'DEF_FB',  label: 'FB'  }, { id: 'DEF_RBP', label: 'RBP' },
+    { id: 'DEF_LHB', label: 'LHB' }, { id: 'DEF_CHB', label: 'CHB' }, { id: 'DEF_RHB', label: 'RHB' },
+  ],
+  MIDFIELD: [
+    { id: 'MID_LW', label: 'LW' }, { id: 'MID_C',  label: 'C'  }, { id: 'MID_RW', label: 'RW' },
+    { id: 'MID_RR', label: 'RR' }, { id: 'MID_RK', label: 'RK' }, { id: 'MID_RV', label: 'RV' },
+  ],
+  FORWARD: [
+    { id: 'FWD_LHF', label: 'LHF' }, { id: 'FWD_CHF', label: 'CHF' }, { id: 'FWD_RHF', label: 'RHF' },
+    { id: 'FWD_LFP', label: 'LFP' }, { id: 'FWD_FF',  label: 'FF'  }, { id: 'FWD_RFP', label: 'RFP' },
+  ],
 }
 
-const ZONE_ACCENT = {
-  DEFENCE:  { glow: 'rgba(79,70,229,0.35)',  ring: 'rgba(79,70,229,0.6)',  dim: 'rgba(79,70,229,0.12)' },
-  MIDFIELD: { glow: 'rgba(5,150,105,0.35)',  ring: 'rgba(5,150,105,0.6)',  dim: 'rgba(5,150,105,0.12)' },
-  FORWARD:  { glow: 'rgba(220,38,38,0.35)',  ring: 'rgba(220,38,38,0.6)',  dim: 'rgba(220,38,38,0.12)' },
-  BENCH:    { glow: 'rgba(107,114,128,0.35)', ring: 'rgba(107,114,128,0.6)', dim: 'rgba(107,114,128,0.12)' },
+// Map named position → zone for game store
+const POS_TO_ZONE = {
+  DEF_LBP: 'DEFENCE', DEF_FB: 'DEFENCE', DEF_RBP: 'DEFENCE',
+  DEF_LHB: 'DEFENCE', DEF_CHB: 'DEFENCE', DEF_RHB: 'DEFENCE',
+  MID_LW: 'MIDFIELD', MID_C: 'MIDFIELD', MID_RW: 'MIDFIELD',
+  MID_RR: 'MIDFIELD', MID_RK: 'MIDFIELD', MID_RV: 'MIDFIELD',
+  FWD_LHF: 'FORWARD', FWD_CHF: 'FORWARD', FWD_RHF: 'FORWARD',
+  FWD_LFP: 'FORWARD', FWD_FF: 'FORWARD', FWD_RFP: 'FORWARD',
 }
 
-// Horizontal player card on the field
-function FieldChip({ player, onRemove }) {
+const CHIP_BG   = 'rgba(18, 22, 30, 0.88)'
+const CHIP_RING = 'rgba(255,255,255,0.16)'
+
+// Filled position slot — horizontal card
+function FilledSlot({ player, posLabel, onRemove }) {
   const initial = player.first_name.charAt(0).toUpperCase()
   return (
     <button
       onClick={e => { e.stopPropagation(); onRemove(player.id) }}
-      className="w-full flex items-center gap-1.5 rounded-md transition-all hover:brightness-110 active:scale-95"
+      className="w-full flex items-center gap-1.5 rounded-lg transition-all active:scale-95"
       style={{
-        background: 'rgba(10,15,20,0.80)',
-        border: '1px solid rgba(255,255,255,0.14)',
-        padding: '3px 5px',
-        height: 34,
-        boxShadow: '0 1px 5px rgba(0,0,0,0.6)',
+        background: CHIP_BG,
+        border: `1px solid ${CHIP_RING}`,
+        padding: '4px 6px',
+        height: 38,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.55)',
       }}
     >
-      {/* Jersey number badge */}
-      <div
-        className="flex-shrink-0 flex items-center justify-center rounded"
-        style={{
-          background: POS[player.primary_position].color,
-          minWidth: 22, height: 22, padding: '0 3px',
-        }}
-      >
-        <span className="font-condensed font-black text-white leading-none" style={{ fontSize: 12 }}>
+      {/* Jersey number */}
+      <div className="flex-shrink-0 flex items-center justify-center rounded"
+        style={{ background: '#CC0000', minWidth: 24, height: 24, padding: '0 3px' }}>
+        <span className="font-condensed font-black text-white leading-none" style={{ fontSize: 13 }}>
           {player.number}
         </span>
       </div>
-      {/* Name + position */}
+      {/* Name + position label */}
       <div className="flex flex-col items-start min-w-0 flex-1">
-        <span className="font-condensed font-bold text-white uppercase leading-none truncate w-full" style={{ fontSize: 10 }}>
+        <span className="font-condensed font-bold text-white uppercase leading-none w-full truncate" style={{ fontSize: 11 }}>
           {initial}.{player.last_name}
         </span>
-        <span className="font-condensed font-bold leading-none" style={{ fontSize: 8, color: POS[player.primary_position].color }}>
-          {POS[player.primary_position].label}
+        <span className="font-condensed font-bold text-gray-400 leading-none" style={{ fontSize: 9 }}>
+          {posLabel}
         </span>
       </div>
     </button>
   )
 }
 
-// Empty spot — same size as a chip
-function EmptySpot() {
+// Empty position slot — shows the position abbreviation
+function EmptySlot({ label, canDrop, onClick }) {
   return (
-    <div
-      className="w-full rounded-md"
+    <button
+      onClick={onClick}
+      className="w-full flex flex-col items-center justify-center rounded-lg transition-all"
       style={{
-        height: 34,
-        border: '1.5px dashed rgba(255,255,255,0.15)',
-        background: 'rgba(0,0,0,0.1)',
-      }}
-    />
-  )
-}
-
-// A zone section inside the oval
-function FieldZone({ zone, players, benchSize, isZoneFull, selectedId, onTapZone, onRemove, padH, padTop, padBottom }) {
-  const zps = players
-  const max = zone === 'BENCH' ? benchSize : ZONE_MAX
-  const empties = max - zps.length
-  const canDrop = !!selectedId && !isZoneFull
-  const acc = ZONE_ACCENT[zone]
-
-  return (
-    <div
-      onClick={() => onTapZone(zone)}
-      className="flex flex-col items-center justify-center transition-all duration-100"
-      style={{
-        flex: 1,
-        paddingLeft: padH, paddingRight: padH,
-        paddingTop: padTop, paddingBottom: padBottom,
+        height: 38,
+        border: `1.5px dashed ${canDrop ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.18)'}`,
+        background: canDrop ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.12)',
         cursor: canDrop ? 'pointer' : 'default',
-        background: canDrop ? acc.dim : 'transparent',
-        boxShadow: canDrop ? `inset 0 0 0 1.5px ${acc.ring}` : 'none',
       }}
     >
-      {/* 3-column grid of chips + empty spots */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-          gap: '4px',
-          width: '100%',
-        }}
-      >
-        {zps.map(p => <FieldChip key={p.id} player={p} onRemove={onRemove} />)}
-        {Array.from({ length: empties }).map((_, i) => <EmptySpot key={i} />)}
-      </div>
-    </div>
+      <span className="font-condensed font-black text-gray-500 uppercase tracking-wide" style={{ fontSize: 10 }}>
+        {label}
+      </span>
+    </button>
   )
 }
 
 export default function PreMatchSetup() {
-  const navigate = useNavigate()
-  const players = useGameStore(s => s.players)
-  const createMatch = useGameStore(s => s.createMatch)
+  const navigate   = useNavigate()
+  const players    = useGameStore(s => s.players)
+  const createMatch    = useGameStore(s => s.createMatch)
   const setMatchPlayers = useGameStore(s => s.setMatchPlayers)
 
   const [step, setStep] = useState(1)
   const [matchData, setMatchData] = useState({
-    opponent: '',
-    date: new Date().toISOString().split('T')[0],
-    venue: '',
-    bench_size: 4,
+    opponent: '', date: new Date().toISOString().split('T')[0], venue: '', bench_size: 4,
   })
+  // assignments: { playerId: positionId | 'BENCH' }
   const [assignments, setAssignments] = useState({})
   const [selectedId, setSelectedId] = useState(null)
 
   const activePlayers = players.filter(p => p.active).sort((a, b) => a.number - b.number)
-  const unassigned = activePlayers.filter(p => !assignments[p.id])
-  const totalNeeded = 18 + matchData.bench_size
-  const totalAssigned = Object.keys(assignments).length
-  const canStart = totalAssigned === totalNeeded
+  const unassigned    = activePlayers.filter(p => !assignments[p.id])
 
-  const getZonePlayers = zone => activePlayers.filter(p => assignments[p.id] === zone)
-  const isZoneFull = zone => getZonePlayers(zone).length >= (zone === 'BENCH' ? matchData.bench_size : ZONE_MAX)
+  // reverse map: positionId → playerId
+  const posToPlayer = {}
+  Object.entries(assignments).forEach(([pid, posId]) => { posToPlayer[posId] = pid })
+
+  const benchPlayers  = activePlayers.filter(p => assignments[p.id] === 'BENCH')
+  const totalAssigned = Object.keys(assignments).length
+  const totalNeeded   = 18 + matchData.bench_size
+  const canStart      = totalAssigned === totalNeeded
+
+  const selectedPlayer = activePlayers.find(p => p.id === selectedId)
 
   const handleSelectFromList = id => setSelectedId(id === selectedId ? null : id)
 
-  const handleTapZone = zone => {
-    if (!selectedId || isZoneFull(zone)) return
-    setAssignments(prev => ({ ...prev, [selectedId]: zone }))
+  const handleTapSlot = posId => {
+    if (!selectedId) return
+    if (posToPlayer[posId] && posToPlayer[posId] !== selectedId) return // slot taken
+    setAssignments(prev => ({ ...prev, [selectedId]: posId }))
     const remaining = unassigned.filter(p => p.id !== selectedId)
     setSelectedId(remaining[0]?.id ?? null)
   }
 
-  const handleRemoveFromField = id => {
+  const handleTapBench = () => {
+    if (!selectedId) return
+    if (benchPlayers.length >= matchData.bench_size) return
+    setAssignments(prev => ({ ...prev, [selectedId]: 'BENCH' }))
+    const remaining = unassigned.filter(p => p.id !== selectedId)
+    setSelectedId(remaining[0]?.id ?? null)
+  }
+
+  const handleRemove = id => {
     setAssignments(prev => { const n = { ...prev }; delete n[id]; return n })
     setSelectedId(id)
   }
@@ -153,25 +142,52 @@ export default function PreMatchSetup() {
     if (!canStart) return
     const match = createMatch(matchData)
     setMatchPlayers(
-      Object.entries(assignments).map(([player_id, current_position]) => ({
-        player_id, match_id: match.id, current_position, status: 'ACTIVE',
+      Object.entries(assignments).map(([player_id, posId]) => ({
+        player_id, match_id: match.id,
+        current_position: posId === 'BENCH' ? 'BENCH' : POS_TO_ZONE[posId],
+        status: 'ACTIVE',
       }))
     )
     navigate('/match/live')
   }
 
-  const selectedPlayer = activePlayers.find(p => p.id === selectedId)
+  // Render a 3×2 zone grid inside the oval
+  const renderZone = (zoneName, padH, padTop, padBottom) => {
+    const positions = ZONE_POSITIONS[zoneName]
+    return (
+      <div
+        className="flex flex-col justify-center"
+        style={{ flex: 1, padding: `${padTop} ${padH} ${padBottom}` }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 5 }}>
+          {positions.map(pos => {
+            const occupantId = posToPlayer[pos.id]
+            const occupant   = occupantId ? activePlayers.find(p => p.id === occupantId) : null
+            if (occupant) {
+              return <FilledSlot key={pos.id} player={occupant} posLabel={pos.label} onRemove={handleRemove} />
+            }
+            return (
+              <EmptySlot
+                key={pos.id}
+                label={pos.label}
+                canDrop={!!selectedId}
+                onClick={() => handleTapSlot(pos.id)}
+              />
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-screen flex flex-col bg-sharks-dark">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex items-center justify-between px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => step === 1 ? navigate('/') : setStep(1)}
-            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors"
-          >
+          <button onClick={() => step === 1 ? navigate('/') : setStep(1)}
+            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors">
             <ChevronLeft size={20} className="text-gray-400" />
           </button>
           <img src="/sharks-logo.png" alt="" className="h-10 w-auto" onError={e => { e.target.style.display = 'none' }} />
@@ -188,28 +204,22 @@ export default function PreMatchSetup() {
           </div>
         </div>
         {step === 2 && (
-          <button
-            onClick={handleStart}
-            disabled={!canStart}
+          <button onClick={handleStart} disabled={!canStart}
             className={`h-11 px-5 font-condensed font-bold text-sm uppercase tracking-wide rounded-xl flex items-center gap-2 transition-all ${
-              canStart
-                ? 'bg-sharks-red hover:bg-red-700 text-white'
-                : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
-            }`}
-          >
+              canStart ? 'bg-sharks-red hover:bg-red-700 text-white' : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
+            }`}>
             <Check size={16} /> Start Match
           </button>
         )}
       </div>
 
-      {/* ── Step 1: Match details ── */}
+      {/* Step 1 */}
       {step === 1 && (
         <div className="flex-1 overflow-auto flex items-center justify-center p-6">
           <div className="w-full max-w-sm flex flex-col gap-5">
             <div>
               <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Opponent</label>
-              <input
-                autoFocus
+              <input autoFocus
                 className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow rounded-xl px-4 h-12 focus:outline-none focus:border-sharks-red transition-colors placeholder:text-gray-600"
                 placeholder="e.g. East Fremantle FC"
                 value={matchData.opponent}
@@ -217,45 +227,34 @@ export default function PreMatchSetup() {
                 onKeyDown={e => e.key === 'Enter' && matchData.opponent.trim() && setStep(2)}
               />
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Date</label>
-                <input
-                  type="date"
+                <input type="date"
                   className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow rounded-xl px-4 h-12 focus:outline-none focus:border-sharks-red transition-colors"
-                  value={matchData.date}
-                  onChange={e => setMatchData(d => ({ ...d, date: e.target.value }))}
-                />
+                  value={matchData.date} onChange={e => setMatchData(d => ({ ...d, date: e.target.value }))} />
               </div>
               <div>
                 <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Venue</label>
                 <input
                   className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow rounded-xl px-4 h-12 focus:outline-none focus:border-sharks-red transition-colors placeholder:text-gray-600"
                   placeholder="Ground name"
-                  value={matchData.venue}
-                  onChange={e => setMatchData(d => ({ ...d, venue: e.target.value }))}
-                />
+                  value={matchData.venue} onChange={e => setMatchData(d => ({ ...d, venue: e.target.value }))} />
               </div>
             </div>
-
             <div>
               <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Interchange</label>
               <div className="flex items-center bg-sharks-surface border border-sharks-border rounded-xl overflow-hidden h-14">
-                <button
-                  onClick={() => setMatchData(d => ({ ...d, bench_size: Math.max(4, d.bench_size - 1) }))}
-                  className="w-14 h-full flex items-center justify-center hover:bg-sharks-surface2 transition-colors border-r border-sharks-border"
-                >
+                <button onClick={() => setMatchData(d => ({ ...d, bench_size: Math.max(4, d.bench_size - 1) }))}
+                  className="w-14 h-full flex items-center justify-center hover:bg-sharks-surface2 transition-colors border-r border-sharks-border">
                   <Minus size={18} className="text-gray-400" />
                 </button>
                 <div className="flex-1 flex flex-col items-center justify-center">
                   <span className="font-condensed font-black text-white text-3xl leading-none">{matchData.bench_size}</span>
                   <span className="font-condensed text-gray-500 text-xs">on interchange</span>
                 </div>
-                <button
-                  onClick={() => setMatchData(d => ({ ...d, bench_size: Math.min(10, d.bench_size + 1) }))}
-                  className="w-14 h-full flex items-center justify-center hover:bg-sharks-surface2 transition-colors border-l border-sharks-border"
-                >
+                <button onClick={() => setMatchData(d => ({ ...d, bench_size: Math.min(10, d.bench_size + 1) }))}
+                  className="w-14 h-full flex items-center justify-center hover:bg-sharks-surface2 transition-colors border-l border-sharks-border">
                   <Plus size={18} className="text-gray-400" />
                 </button>
               </div>
@@ -263,27 +262,21 @@ export default function PreMatchSetup() {
                 {18 + matchData.bench_size} total players · 4–10 allowed
               </p>
             </div>
-
-            <button
-              onClick={() => matchData.opponent.trim() && setStep(2)}
-              disabled={!matchData.opponent.trim()}
+            <button onClick={() => matchData.opponent.trim() && setStep(2)} disabled={!matchData.opponent.trim()}
               className={`w-full h-12 rounded-xl font-condensed font-bold text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-                matchData.opponent.trim()
-                  ? 'bg-sharks-red hover:bg-red-700 text-white'
-                  : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
-              }`}
-            >
+                matchData.opponent.trim() ? 'bg-sharks-red hover:bg-red-700 text-white' : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
+              }`}>
               Select Team <ChevronRight size={16} />
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Step 2: Field placement ── */}
+      {/* Step 2 */}
       {step === 2 && (
         <div className="flex-1 flex overflow-hidden">
 
-          {/* Left: unassigned player list */}
+          {/* Left: unassigned players */}
           <div className="w-36 flex-shrink-0 border-r border-sharks-border flex flex-col bg-sharks-surface">
             <div className="px-3 py-2 border-b border-sharks-border flex-shrink-0">
               <p className="font-condensed text-[10px] text-gray-500 uppercase tracking-widest">
@@ -295,214 +288,134 @@ export default function PreMatchSetup() {
                 <div className="flex items-center justify-center h-16">
                   <p className="font-condensed text-xs text-gray-600">All placed</p>
                 </div>
-              ) : (
-                unassigned.map(player => (
-                  <button
-                    key={player.id}
-                    onClick={() => handleSelectFromList(player.id)}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 border-b transition-all text-left"
-                    style={{
-                      borderBottomColor: 'rgba(255,255,255,0.05)',
-                      borderLeft: `3px solid ${selectedId === player.id ? '#CC0000' : 'transparent'}`,
-                      background: selectedId === player.id ? 'rgba(204,0,0,0.1)' : 'transparent',
-                    }}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0"
-                      style={{ background: POS[player.primary_position].color }}
-                    >
-                      <span className="font-condensed font-black text-white text-sm">{player.number}</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-condensed font-bold text-white text-sm uppercase leading-tight truncate">
-                        {player.last_name}
-                      </p>
-                      <p className="font-condensed text-[10px] font-bold leading-none" style={{ color: POS[player.primary_position].color }}>
-                        {POS[player.primary_position].label}
-                      </p>
-                    </div>
-                  </button>
-                ))
-              )}
+              ) : unassigned.map(player => (
+                <button key={player.id} onClick={() => handleSelectFromList(player.id)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 border-b transition-all text-left"
+                  style={{
+                    borderBottomColor: 'rgba(255,255,255,0.05)',
+                    borderLeft: `3px solid ${selectedId === player.id ? '#CC0000' : 'transparent'}`,
+                    background: selectedId === player.id ? 'rgba(204,0,0,0.1)' : 'transparent',
+                  }}>
+                  <div className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0"
+                    style={{ background: '#CC0000' }}>
+                    <span className="font-condensed font-black text-white text-sm">{player.number}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-condensed font-bold text-white text-sm uppercase leading-tight truncate">
+                      {player.last_name}
+                    </p>
+                    <p className="font-condensed text-[10px] font-bold text-gray-400 leading-none">
+                      {player.first_name.charAt(0)}.
+                    </p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Right: AFL field */}
-          <div className="flex-1 overflow-auto flex flex-col items-center py-3 px-2 gap-2">
+          {/* Right: field */}
+          <div className="flex-1 overflow-auto flex flex-col items-center py-3 px-3 gap-2">
 
-            {/* Hint bar */}
+            {/* Hint */}
             <div className="h-5 flex items-center justify-center flex-shrink-0 w-full">
               {selectedPlayer ? (
                 <p className="font-condensed text-xs text-gray-400 text-center">
-                  Placing{' '}
-                  <span className="font-black" style={{ color: POS[selectedPlayer.primary_position].color }}>
-                    #{selectedPlayer.number} {selectedPlayer.last_name}
-                  </span>
-                  {' '}— tap a zone on the field
+                  Placing <span className="font-black text-white">#{selectedPlayer.number} {selectedPlayer.first_name.charAt(0)}.{selectedPlayer.last_name}</span> — tap a position
                 </p>
               ) : (
                 <p className="font-condensed text-xs text-gray-600">Select a player from the list</p>
               )}
             </div>
 
-            {/* ── AFL Oval ── */}
-            <div
-              className="flex-shrink-0 relative overflow-hidden flex flex-col"
+            {/* AFL Oval — fills panel width */}
+            <div className="flex-shrink-0 relative overflow-hidden flex flex-col"
               style={{
                 width: '100%',
-                maxWidth: 310,
-                // True ellipse: border-radius 50% creates a perfect oval
                 borderRadius: '50%',
                 aspectRatio: '10 / 15',
-                background: 'linear-gradient(180deg, #14a347 0%, #16a34a 40%, #15803d 50%, #16a34a 60%, #14a347 100%)',
+                background: 'linear-gradient(180deg, #14a347 0%, #16a34a 35%, #15803d 50%, #16a34a 65%, #14a347 100%)',
                 border: '3px solid rgba(255,255,255,0.15)',
-                boxShadow: '0 0 0 1px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.6)',
-              }}
-            >
-              {/* ── Field markings (non-interactive) ── */}
+                boxShadow: '0 0 0 1px rgba(0,0,0,0.5), 0 12px 40px rgba(0,0,0,0.7)',
+              }}>
+
+              {/* Field markings */}
               <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
-
-                {/* Goal square — top (defence end) */}
-                <div style={{
-                  position: 'absolute', top: '3%', left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 36, height: 16,
-                  border: '1.5px solid rgba(255,255,255,0.35)',
-                  borderRadius: 2,
-                }} />
-
-                {/* Goal square — bottom (forward end) */}
-                <div style={{
-                  position: 'absolute', bottom: '3%', left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 36, height: 16,
-                  border: '1.5px solid rgba(255,255,255,0.35)',
-                  borderRadius: 2,
-                }} />
-
                 {/* 50m arc — top */}
                 <div style={{
-                  position: 'absolute', top: '26%', left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 130, height: 65,
-                  borderBottom: '1.5px solid rgba(255,255,255,0.25)',
-                  borderLeft: '1.5px solid rgba(255,255,255,0.25)',
-                  borderRight: '1.5px solid rgba(255,255,255,0.25)',
-                  borderRadius: '0 0 65px 65px',
+                  position: 'absolute', top: '27%', left: '50%', transform: 'translateX(-50%)',
+                  width: '48%', height: '12%',
+                  borderBottom: '1.5px solid rgba(255,255,255,0.22)',
+                  borderLeft: '1.5px solid rgba(255,255,255,0.22)',
+                  borderRight: '1.5px solid rgba(255,255,255,0.22)',
+                  borderRadius: '0 0 50% 50%',
                 }} />
-
                 {/* 50m arc — bottom */}
                 <div style={{
-                  position: 'absolute', bottom: '26%', left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 130, height: 65,
-                  borderTop: '1.5px solid rgba(255,255,255,0.25)',
-                  borderLeft: '1.5px solid rgba(255,255,255,0.25)',
-                  borderRight: '1.5px solid rgba(255,255,255,0.25)',
-                  borderRadius: '65px 65px 0 0',
+                  position: 'absolute', bottom: '27%', left: '50%', transform: 'translateX(-50%)',
+                  width: '48%', height: '12%',
+                  borderTop: '1.5px solid rgba(255,255,255,0.22)',
+                  borderLeft: '1.5px solid rgba(255,255,255,0.22)',
+                  borderRight: '1.5px solid rgba(255,255,255,0.22)',
+                  borderRadius: '50% 50% 0 0',
                 }} />
-
                 {/* Centre circle */}
                 <div style={{
                   position: 'absolute', top: '50%', left: '50%',
                   transform: 'translate(-50%, -50%)',
-                  width: 72, height: 72,
+                  width: '24%', height: '8%',
                   borderRadius: '50%',
-                  border: '1.5px solid rgba(255,255,255,0.3)',
+                  border: '1.5px solid rgba(255,255,255,0.28)',
                 }} />
-
                 {/* Centre square */}
                 <div style={{
                   position: 'absolute', top: '50%', left: '50%',
                   transform: 'translate(-50%, -50%)',
-                  width: 44, height: 44,
-                  border: '1.5px solid rgba(255,255,255,0.2)',
+                  width: '15%', height: '5%',
+                  border: '1.5px solid rgba(255,255,255,0.18)',
                 }} />
-
                 {/* Centre dot */}
                 <div style={{
                   position: 'absolute', top: '50%', left: '50%',
                   transform: 'translate(-50%, -50%)',
-                  width: 7, height: 7,
-                  borderRadius: '50%',
+                  width: 8, height: 8, borderRadius: '50%',
                   background: 'rgba(255,255,255,0.4)',
                 }} />
-
-                {/* Zone divider lines */}
-                <div style={{ position: 'absolute', top: '33.33%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.18)' }} />
-                <div style={{ position: 'absolute', top: '66.66%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.18)' }} />
+                {/* Zone dividers */}
+                <div style={{ position: 'absolute', top: '33.33%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.2)' }} />
+                <div style={{ position: 'absolute', top: '66.66%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.2)' }} />
               </div>
 
-              {/* ── DEFENCE zone (top third) ── */}
-              <FieldZone
-                zone="DEFENCE"
-                players={getZonePlayers('DEFENCE')}
-                benchSize={matchData.bench_size}
-                isZoneFull={isZoneFull('DEFENCE')}
-                selectedId={selectedId}
-                onTapZone={handleTapZone}
-                onRemove={handleRemoveFromField}
-                padH="10%"
-                padTop="10%"
-                padBottom="3%"
-              />
-
-              {/* ── MIDFIELD zone (centre third) ── */}
-              <FieldZone
-                zone="MIDFIELD"
-                players={getZonePlayers('MIDFIELD')}
-                benchSize={matchData.bench_size}
-                isZoneFull={isZoneFull('MIDFIELD')}
-                selectedId={selectedId}
-                onTapZone={handleTapZone}
-                onRemove={handleRemoveFromField}
-                padH="4%"
-                padTop="3%"
-                padBottom="3%"
-              />
-
-              {/* ── FORWARD zone (bottom third) ── */}
-              <FieldZone
-                zone="FORWARD"
-                players={getZonePlayers('FORWARD')}
-                benchSize={matchData.bench_size}
-                isZoneFull={isZoneFull('FORWARD')}
-                selectedId={selectedId}
-                onTapZone={handleTapZone}
-                onRemove={handleRemoveFromField}
-                padH="10%"
-                padTop="3%"
-                padBottom="10%"
-              />
+              {renderZone('DEFENCE', '10%', '10%', '3%')}
+              {renderZone('MIDFIELD', '5%', '3%', '3%')}
+              {renderZone('FORWARD', '10%', '3%', '10%')}
             </div>
 
-            {/* ── Interchange (below oval) ── */}
-            <div
-              className="flex-shrink-0 rounded-2xl p-3 transition-all duration-100"
+            {/* Interchange */}
+            <div className="flex-shrink-0 rounded-2xl p-3 transition-all duration-100 w-full"
               style={{
-                width: '100%',
-                maxWidth: 310,
-                background: selectedId && !isZoneFull('BENCH')
-                  ? ZONE_ACCENT.BENCH.dim
-                  : 'rgba(255,255,255,0.03)',
-                border: `1.5px solid ${selectedId && !isZoneFull('BENCH') ? ZONE_ACCENT.BENCH.ring : 'rgba(255,255,255,0.07)'}`,
-                cursor: selectedId && !isZoneFull('BENCH') ? 'pointer' : 'default',
+                background: selectedId && benchPlayers.length < matchData.bench_size
+                  ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.025)',
+                border: `1.5px solid ${selectedId && benchPlayers.length < matchData.bench_size
+                  ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.07)'}`,
+                cursor: selectedId && benchPlayers.length < matchData.bench_size ? 'pointer' : 'default',
               }}
-              onClick={() => handleTapZone('BENCH')}
-            >
-              <p className="font-condensed text-[9px] uppercase tracking-[0.15em] font-bold mb-2 text-center text-gray-500">
-                Interchange · {getZonePlayers('BENCH').length} / {matchData.bench_size}
+              onClick={handleTapBench}>
+              <p className="font-condensed text-[10px] uppercase tracking-[0.15em] font-bold mb-2 text-center text-gray-500">
+                Interchange · {benchPlayers.length} / {matchData.bench_size}
               </p>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${Math.min(matchData.bench_size, 5)}, minmax(0, 1fr))`,
-                  gap: 4,
-                  justifyItems: 'center',
-                }}
-              >
-                {getZonePlayers('BENCH').map(p => <FieldChip key={p.id} player={p} onRemove={handleRemoveFromField} />)}
-                {Array.from({ length: matchData.bench_size - getZonePlayers('BENCH').length }).map((_, i) => <EmptySpot key={i} />)}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${Math.min(matchData.bench_size, 5)}, minmax(0, 1fr))`,
+                gap: 5,
+              }}>
+                {benchPlayers.map(p => (
+                  <FilledSlot key={p.id} player={p} posLabel="INT" onRemove={handleRemove} />
+                ))}
+                {Array.from({ length: matchData.bench_size - benchPlayers.length }).map((_, i) => (
+                  <EmptySlot key={i} label="INT"
+                    canDrop={!!selectedId && benchPlayers.length < matchData.bench_size}
+                    onClick={handleTapBench} />
+                ))}
               </div>
             </div>
 
