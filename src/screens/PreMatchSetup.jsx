@@ -1,11 +1,50 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check, Plus, Minus } from 'lucide-react'
 import { useGameStore } from '../store/useGameStore'
 
-const POSITIONS = ['FORWARD', 'MIDFIELD', 'DEFENCE']
-const POS_LABELS = { FORWARD: 'FWD', MIDFIELD: 'MID', DEFENCE: 'DEF' }
-const POS_COLORS = { FORWARD: 'border-red-700 bg-red-950/50', MIDFIELD: 'border-green-700 bg-green-950/50', DEFENCE: 'border-indigo-700 bg-indigo-950/50' }
+const ZONE_MAX = 6
+
+const POS = {
+  FORWARD:  { color: '#dc2626', label: 'FWD' },
+  MIDFIELD: { color: '#059669', label: 'MID' },
+  DEFENCE:  { color: '#4f46e5', label: 'DEF' },
+  BENCH:    { color: '#6b7280', label: 'INT' },
+}
+
+const ZONE_STYLE = {
+  DEFENCE:  { hover: 'rgba(79,70,229,0.2)',  border: 'rgba(79,70,229,0.45)',  textColor: 'rgba(165,180,252,0.7)' },
+  MIDFIELD: { hover: 'rgba(5,150,105,0.2)',  border: 'rgba(5,150,105,0.45)',  textColor: 'rgba(110,231,183,0.7)' },
+  FORWARD:  { hover: 'rgba(220,38,38,0.2)',  border: 'rgba(220,38,38,0.45)',  textColor: 'rgba(252,165,165,0.7)' },
+  BENCH:    { hover: 'rgba(107,114,128,0.2)', border: 'rgba(107,114,128,0.45)', textColor: 'rgba(209,213,219,0.7)' },
+}
+
+function PlayerChip({ player, onRemove }) {
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onRemove(player.id) }}
+      className="flex flex-col items-center rounded-lg px-1.5 py-1 transition-all hover:brightness-125 active:scale-95"
+      style={{ background: POS[player.primary_position].color, minWidth: '2.75rem' }}
+      title={`${player.first_name} ${player.last_name} — tap to remove`}
+    >
+      <span className="font-condensed font-black text-white text-base leading-none">{player.number}</span>
+      <span className="font-condensed text-white/75 text-[9px] leading-none tracking-wide">
+        {player.last_name.slice(0, 5).toUpperCase()}
+      </span>
+    </button>
+  )
+}
+
+function EmptySlot() {
+  return (
+    <div
+      className="rounded-lg flex items-center justify-center"
+      style={{ minWidth: '2.75rem', height: '2.375rem', border: '1px dashed rgba(255,255,255,0.12)' }}
+    >
+      <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: '10px' }}>·</span>
+    </div>
+  )
+}
 
 export default function PreMatchSetup() {
   const navigate = useNavigate()
@@ -14,299 +53,370 @@ export default function PreMatchSetup() {
   const setMatchPlayers = useGameStore(s => s.setMatchPlayers)
 
   const [step, setStep] = useState(1)
-  const [matchData, setMatchData] = useState({ opponent: '', date: new Date().toISOString().split('T')[0], venue: '' })
-  const [selectedIds, setSelectedIds] = useState([])
-  const [assignments, setAssignments] = useState({}) // { playerId: 'FORWARD'|'MIDFIELD'|'DEFENCE'|'BENCH' }
-  const [showPoints, setShowPoints] = useState(false)
-
-  const POINTS_CAP = 42
-  const selectedPoints = selectedIds.reduce((sum, id) => {
-    const p = players.find(pl => pl.id === id)
-    return sum + (p?.points ?? 0)
-  }, 0)
-  const pointsOver = selectedPoints > POINTS_CAP
+  const [matchData, setMatchData] = useState({
+    opponent: '',
+    date: new Date().toISOString().split('T')[0],
+    venue: '',
+    bench_size: 4,
+  })
+  const [assignments, setAssignments] = useState({})
+  const [selectedId, setSelectedId] = useState(null)
 
   const activePlayers = players.filter(p => p.active).sort((a, b) => a.number - b.number)
+  const unassigned = activePlayers.filter(p => !assignments[p.id])
+  const totalNeeded = 18 + matchData.bench_size
+  const totalAssigned = Object.keys(assignments).length
+  const canStart = totalAssigned === totalNeeded
 
-  // Step 1: Match details
-  const handleStep1 = () => {
-    if (!matchData.opponent.trim()) return
-    setStep(2)
+  const getZonePlayers = zone => activePlayers.filter(p => assignments[p.id] === zone)
+  const isZoneFull = zone => getZonePlayers(zone).length >= (zone === 'BENCH' ? matchData.bench_size : ZONE_MAX)
+
+  const handleSelectFromList = id => setSelectedId(id === selectedId ? null : id)
+
+  const handleTapZone = zone => {
+    if (!selectedId || isZoneFull(zone)) return
+    setAssignments(prev => ({ ...prev, [selectedId]: zone }))
+    const remaining = unassigned.filter(p => p.id !== selectedId)
+    setSelectedId(remaining[0]?.id ?? null)
   }
 
-  // Step 2: Squad selection
-  const togglePlayer = (id) => {
-    setSelectedIds(ids =>
-      ids.includes(id) ? ids.filter(i => i !== id) : ids.length < 22 ? [...ids, id] : ids
-    )
+  const handleRemoveFromField = id => {
+    setAssignments(prev => { const n = { ...prev }; delete n[id]; return n })
+    setSelectedId(id)
   }
 
-  const handleStep2 = () => {
-    if (selectedIds.length < 18) return
-    // Auto-assign based on primary position
-    const auto = {}
-    const counts = { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }
-    selectedIds.forEach(id => {
-      const p = players.find(pl => pl.id === id)
-      let pos = p.primary_position
-      if (counts[pos] >= 6) pos = 'BENCH'
-      if (counts.BENCH >= 4) pos = Object.keys(counts).find(k => counts[k] < (k === 'BENCH' ? 4 : 6)) || 'BENCH'
-      auto[id] = pos
-      counts[pos]++
-    })
-    setAssignments(auto)
-    setStep(3)
-  }
-
-  // Step 3: Position assignment
-  const reassign = (playerId, newPos) => {
-    const zoneLimit = newPos === 'BENCH' ? 4 : 6
-    const currentCount = Object.values(assignments).filter(p => p === newPos).length
-    if (currentCount >= zoneLimit) return // zone full
-    setAssignments(a => ({ ...a, [playerId]: newPos }))
-  }
-
-  const counts = { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }
-  Object.values(assignments).forEach(p => { if (counts[p] !== undefined) counts[p]++ })
-  const isValid = counts.FORWARD === 6 && counts.MIDFIELD === 6 && counts.DEFENCE === 6 && counts.BENCH === 4
-
-  const handleStartMatch = () => {
+  const handleStart = () => {
+    if (!canStart) return
     const match = createMatch(matchData)
-    const mps = selectedIds.map((pid, i) => ({
-      id: `mp_${i}`,
-      match_id: match.id,
-      player_id: pid,
-      current_position: assignments[pid] || 'BENCH',
-      starting_position: assignments[pid] || 'BENCH',
-      status: 'ACTIVE',
-    }))
-    setMatchPlayers(mps)
+    setMatchPlayers(
+      Object.entries(assignments).map(([player_id, current_position]) => ({
+        player_id, match_id: match.id, current_position, status: 'ACTIVE',
+      }))
+    )
     navigate('/match/live')
+  }
+
+  const selectedPlayer = activePlayers.find(p => p.id === selectedId)
+
+  const renderFieldZone = (zone, padH, padTop, padBottom) => {
+    const zps = getZonePlayers(zone)
+    const empties = ZONE_MAX - zps.length
+    const canDrop = !!selectedId && !isZoneFull(zone)
+    const zs = ZONE_STYLE[zone]
+
+    return (
+      <div
+        onClick={() => handleTapZone(zone)}
+        className="flex flex-col items-center justify-center cursor-pointer transition-all duration-100"
+        style={{
+          flex: 1,
+          paddingLeft: padH, paddingRight: padH,
+          paddingTop: padTop, paddingBottom: padBottom,
+          background: canDrop ? zs.hover : 'transparent',
+          boxShadow: canDrop ? `inset 0 0 0 1.5px ${zs.border}` : 'none',
+        }}
+      >
+        <span
+          className="font-condensed text-[8px] uppercase tracking-[0.15em] mb-1 font-bold"
+          style={{ color: zs.textColor }}
+        >
+          {zone}
+        </span>
+        <div className="flex flex-wrap justify-center gap-1">
+          {zps.map(p => <PlayerChip key={p.id} player={p} onRemove={handleRemoveFromField} />)}
+          {Array.from({ length: empties }).map((_, i) => <EmptySlot key={i} />)}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="h-screen flex flex-col bg-sharks-dark">
+
       {/* Header */}
-      <div className="flex items-center gap-4 px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
-        <button onClick={() => step === 1 ? navigate('/') : setStep(s => s - 1)} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2">
-          <ChevronLeft size={20} className="text-gray-400" />
-        </button>
-        <div>
-          <h1 className="font-condensed font-black text-2xl text-white uppercase">Pre-Match Setup</h1>
-          <div className="flex gap-2 mt-0.5">
-            {[1,2,3].map(s => (
-              <div key={s} className={`h-1 w-8 rounded-full transition-colors ${step >= s ? 'bg-sharks-red' : 'bg-sharks-surface2'}`} />
-            ))}
+      <div className="flex items-center justify-between px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => step === 1 ? navigate('/') : setStep(1)}
+            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors"
+          >
+            <ChevronLeft size={20} className="text-gray-400" />
+          </button>
+          <img
+            src="/sharks-logo.png" alt="Sorrento Sharks"
+            className="h-10 w-auto" onError={e => { e.target.style.display = 'none' }}
+          />
+          <div className="h-6 w-px bg-sharks-border" />
+          <div>
+            <h1 className="font-condensed font-black text-white text-2xl uppercase tracking-wide leading-none">
+              {step === 1 ? 'New Match' : 'Team Selection'}
+            </h1>
+            <p className="font-condensed text-gray-500 text-xs mt-0.5">
+              {step === 1
+                ? `Step 1 of 2 · ${18 + matchData.bench_size} players needed`
+                : `${totalAssigned} / ${totalNeeded} placed`}
+            </p>
           </div>
         </div>
-        <div className="ml-auto font-condensed text-gray-500 text-sm">Step {step} of 3</div>
+        {step === 2 && (
+          <button
+            onClick={handleStart}
+            disabled={!canStart}
+            className={`h-11 px-5 font-condensed font-bold text-sm uppercase tracking-wide rounded-xl flex items-center gap-2 transition-all ${
+              canStart
+                ? 'bg-sharks-red hover:bg-red-700 text-white'
+                : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
+            }`}
+          >
+            <Check size={16} />
+            Start Match
+          </button>
+        )}
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
-        {/* Step 1: Match details */}
-        {step === 1 && (
-          <div className="max-w-md mx-auto flex flex-col gap-5">
-            <h2 className="font-condensed font-extrabold text-2xl text-white uppercase">Match Details</h2>
+      {/* ── Step 1: Match details ── */}
+      {step === 1 && (
+        <div className="flex-1 overflow-auto flex items-center justify-center p-6">
+          <div className="w-full max-w-sm flex flex-col gap-5">
 
             <div>
-              <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Opponent *</label>
+              <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Opponent</label>
               <input
-                className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow text-lg rounded-xl px-4 h-14 focus:outline-none focus:border-sharks-red transition-colors"
-                placeholder="e.g. Cottesloe"
+                autoFocus
+                className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow rounded-xl px-4 h-12 focus:outline-none focus:border-sharks-red transition-colors placeholder:text-gray-600"
+                placeholder="e.g. East Fremantle FC"
                 value={matchData.opponent}
                 onChange={e => setMatchData(d => ({ ...d, opponent: e.target.value }))}
-                autoFocus
+                onKeyDown={e => e.key === 'Enter' && matchData.opponent.trim() && setStep(2)}
               />
             </div>
-            <div>
-              <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Date *</label>
-              <input
-                type="date"
-                className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow rounded-xl px-4 h-14 focus:outline-none focus:border-sharks-red transition-colors"
-                value={matchData.date}
-                onChange={e => setMatchData(d => ({ ...d, date: e.target.value }))}
-              />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Date</label>
+                <input
+                  type="date"
+                  className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow rounded-xl px-4 h-12 focus:outline-none focus:border-sharks-red transition-colors"
+                  value={matchData.date}
+                  onChange={e => setMatchData(d => ({ ...d, date: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Venue</label>
+                <input
+                  className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow rounded-xl px-4 h-12 focus:outline-none focus:border-sharks-red transition-colors placeholder:text-gray-600"
+                  placeholder="Ground name"
+                  value={matchData.venue}
+                  onChange={e => setMatchData(d => ({ ...d, venue: e.target.value }))}
+                />
+              </div>
             </div>
+
+            {/* Interchange stepper */}
             <div>
-              <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Venue (optional)</label>
-              <input
-                className="w-full bg-sharks-surface border border-sharks-border text-white font-barlow rounded-xl px-4 h-14 focus:outline-none focus:border-sharks-red transition-colors"
-                placeholder="e.g. North Shore Reserve"
-                value={matchData.venue}
-                onChange={e => setMatchData(d => ({ ...d, venue: e.target.value }))}
-              />
+              <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Interchange</label>
+              <div className="flex items-center bg-sharks-surface border border-sharks-border rounded-xl overflow-hidden h-14">
+                <button
+                  onClick={() => setMatchData(d => ({ ...d, bench_size: Math.max(4, d.bench_size - 1) }))}
+                  className="w-14 h-full flex items-center justify-center hover:bg-sharks-surface2 transition-colors border-r border-sharks-border"
+                >
+                  <Minus size={18} className="text-gray-400" />
+                </button>
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  <span className="font-condensed font-black text-white text-3xl leading-none">{matchData.bench_size}</span>
+                  <span className="font-condensed text-gray-500 text-xs">on interchange</span>
+                </div>
+                <button
+                  onClick={() => setMatchData(d => ({ ...d, bench_size: Math.min(10, d.bench_size + 1) }))}
+                  className="w-14 h-full flex items-center justify-center hover:bg-sharks-surface2 transition-colors border-l border-sharks-border"
+                >
+                  <Plus size={18} className="text-gray-400" />
+                </button>
+              </div>
+              <p className="font-condensed text-xs text-gray-600 mt-1.5 text-center">
+                {18 + matchData.bench_size} total players · 4–10 allowed
+              </p>
             </div>
 
             <button
-              onClick={handleStep1}
+              onClick={() => matchData.opponent.trim() && setStep(2)}
               disabled={!matchData.opponent.trim()}
-              className="w-full h-14 bg-sharks-red hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-condensed font-extrabold text-lg uppercase tracking-widest rounded-xl flex items-center justify-center gap-3 transition-colors mt-2"
+              className={`w-full h-12 rounded-xl font-condensed font-bold text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                matchData.opponent.trim()
+                  ? 'bg-sharks-red hover:bg-red-700 text-white'
+                  : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
+              }`}
             >
-              Select Squad <ChevronRight size={20} />
+              Select Team <ChevronRight size={16} />
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Step 2: Squad selection */}
-        {step === 2 && (
-          <div className="flex flex-col gap-4 h-full">
-            <div className="flex items-center justify-between">
-              <h2 className="font-condensed font-extrabold text-2xl text-white uppercase">Select Squad</h2>
-              <div className="flex items-center gap-3">
-                {/* Points toggle */}
-                <button
-                  onClick={() => setShowPoints(v => !v)}
-                  className={`flex items-center gap-2 px-3 h-8 rounded-lg border font-condensed font-bold text-xs uppercase tracking-wide transition-colors ${
-                    showPoints
-                      ? 'bg-sharks-red/20 border-sharks-red text-sharks-red'
-                      : 'bg-sharks-surface2 border-sharks-border text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  Points
-                </button>
-                <div className={`font-condensed font-bold text-lg ${selectedIds.length >= 22 ? 'text-sharks-red' : 'text-white'}`}>
-                  {selectedIds.length} / 22
-                </div>
-              </div>
+      {/* ── Step 2: Field placement ── */}
+      {step === 2 && (
+        <div className="flex-1 flex overflow-hidden">
+
+          {/* Left: unassigned player list */}
+          <div className="w-40 flex-shrink-0 border-r border-sharks-border flex flex-col bg-sharks-surface">
+            <div className="px-3 py-2 border-b border-sharks-border flex-shrink-0">
+              <p className="font-condensed text-[10px] text-gray-500 uppercase tracking-widest">
+                Unplaced · {unassigned.length}
+              </p>
             </div>
-
-            {/* Points summary bar */}
-            {showPoints && (
-              <div className={`flex items-center justify-between px-4 h-11 rounded-xl border font-condensed font-bold text-sm transition-colors ${
-                pointsOver
-                  ? 'bg-red-950 border-red-700 text-red-300'
-                  : 'bg-sharks-surface border-sharks-border text-white'
-              }`}>
-                <span className="uppercase tracking-wide">Squad Points</span>
-                <span className={`text-lg ${pointsOver ? 'text-red-400' : selectedPoints === POINTS_CAP ? 'text-green-400' : 'text-white'}`}>
-                  {selectedPoints} / {POINTS_CAP}
-                  {pointsOver && <span className="ml-2 text-xs text-red-400">OVER CAP</span>}
-                </span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 flex-1 overflow-auto">
-              {activePlayers.map(player => {
-                const selected = selectedIds.includes(player.id)
-                return (
+            <div className="flex-1 overflow-auto">
+              {unassigned.length === 0 ? (
+                <div className="flex items-center justify-center h-16 px-3">
+                  <p className="font-condensed text-xs text-gray-600 text-center">All players placed</p>
+                </div>
+              ) : (
+                unassigned.map(player => (
                   <button
                     key={player.id}
-                    onClick={() => togglePlayer(player.id)}
-                    className={`rounded-xl border-2 p-3 text-left transition-all relative ${
-                      selected
-                        ? 'bg-sharks-red/20 border-sharks-red'
-                        : 'bg-sharks-surface border-sharks-border hover:border-gray-500'
-                    }`}
+                    onClick={() => handleSelectFromList(player.id)}
+                    className="w-full flex items-center gap-2 px-2.5 py-2 border-b transition-all text-left"
+                    style={{
+                      borderBottomColor: 'rgba(255,255,255,0.05)',
+                      borderLeftWidth: selectedId === player.id ? '3px' : '3px',
+                      borderLeftColor: selectedId === player.id ? '#CC0000' : 'transparent',
+                      background: selectedId === player.id ? 'rgba(204,0,0,0.08)' : 'transparent',
+                    }}
+                    onMouseEnter={e => { if (selectedId !== player.id) e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
+                    onMouseLeave={e => { if (selectedId !== player.id) e.currentTarget.style.background = 'transparent' }}
                   >
-                    {selected && <Check size={14} className="absolute top-2 right-2 text-sharks-red" />}
-                    <div className="font-condensed font-black text-2xl text-white">#{player.number}</div>
-                    <div className="font-condensed font-bold text-sm text-white uppercase leading-tight">{player.last_name}</div>
-                    <div className="font-condensed text-xs text-gray-400">{player.first_name}</div>
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className={`font-condensed text-xs font-bold uppercase ${
-                        player.primary_position === 'FORWARD' ? 'text-red-400' :
-                        player.primary_position === 'MIDFIELD' ? 'text-green-400' : 'text-indigo-400'
-                      }`}>{POS_LABELS[player.primary_position]}</span>
-                      {showPoints && player.points != null && (
-                        <span className="font-condensed text-xs font-bold text-yellow-400">{player.points}pt</span>
-                      )}
+                    <div
+                      className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0"
+                      style={{ background: POS[player.primary_position].color }}
+                    >
+                      <span className="font-condensed font-black text-white text-sm">{player.number}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-condensed font-bold text-white text-sm uppercase leading-tight truncate">
+                        {player.last_name}
+                      </p>
+                      <p className="font-condensed text-[10px] leading-none font-bold" style={{ color: POS[player.primary_position].color }}>
+                        {POS[player.primary_position].label}
+                      </p>
                     </div>
                   </button>
-                )
-              })}
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Right: AFL field */}
+          <div className="flex-1 overflow-auto p-3 flex flex-col items-center gap-2">
+
+            {/* Selected player hint */}
+            <div className="h-6 flex items-center justify-center flex-shrink-0">
+              {selectedPlayer ? (
+                <p className="font-condensed text-xs text-gray-400">
+                  Placing{' '}
+                  <span
+                    className="font-bold"
+                    style={{ color: POS[selectedPlayer.primary_position].color }}
+                  >
+                    #{selectedPlayer.number} {selectedPlayer.last_name}
+                  </span>
+                  {' '}— tap a zone
+                </p>
+              ) : (
+                <p className="font-condensed text-xs text-gray-600">Tap a player to place them</p>
+              )}
             </div>
 
-            <button
-              onClick={handleStep2}
-              disabled={selectedIds.length < 18}
-              className="w-full h-14 bg-sharks-red hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-condensed font-extrabold text-lg uppercase tracking-widest rounded-xl flex items-center justify-center gap-3 transition-colors flex-shrink-0"
+            {/* AFL Oval */}
+            <div
+              className="w-full flex-shrink-0 flex flex-col overflow-hidden"
+              style={{
+                maxWidth: '280px',
+                borderRadius: '9999px',
+                border: '2px solid rgba(255,255,255,0.1)',
+                aspectRatio: '3 / 5',
+                background: 'linear-gradient(180deg, #14532d 0%, #15803d 30%, #166534 50%, #15803d 70%, #14532d 100%)',
+                position: 'relative',
+              }}
             >
-              Assign Positions <ChevronRight size={20} />
-            </button>
-          </div>
-        )}
+              {/* Decorative markings (non-interactive) */}
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+                {/* Centre circle */}
+                <div style={{
+                  position: 'absolute', top: '50%', left: '50%',
+                  width: 56, height: 56,
+                  transform: 'translate(-50%, -50%)',
+                  borderRadius: '50%',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                }} />
+                {/* Centre dot */}
+                <div style={{
+                  position: 'absolute', top: '50%', left: '50%',
+                  width: 6, height: 6,
+                  transform: 'translate(-50%, -50%)',
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.15)',
+                }} />
+                {/* Top 50m arc */}
+                <div style={{
+                  position: 'absolute', top: '22%', left: '50%',
+                  width: 80, height: 40,
+                  transform: 'translateX(-50%)',
+                  borderBottom: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '0 0 50% 50%',
+                }} />
+                {/* Bottom 50m arc */}
+                <div style={{
+                  position: 'absolute', bottom: '22%', left: '50%',
+                  width: 80, height: 40,
+                  transform: 'translateX(-50%)',
+                  borderTop: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '50% 50% 0 0',
+                }} />
+              </div>
 
-        {/* Step 3: Position assignment */}
-        {step === 3 && (
-          <div className="flex flex-col gap-4 h-full">
-            <div className="flex items-center justify-between">
-              <h2 className="font-condensed font-extrabold text-2xl text-white uppercase">Starting Positions</h2>
-              <div className="flex gap-3">
-                {Object.entries({ FORWARD: 'text-red-400', MIDFIELD: 'text-green-400', DEFENCE: 'text-indigo-400', BENCH: 'text-gray-400' }).map(([pos, color]) => (
-                  <span key={pos} className={`font-condensed text-sm ${color}`}>
-                    {POS_LABELS[pos] || pos}: {counts[pos]}/{pos === 'BENCH' ? 4 : 6}
-                  </span>
+              {/* Zone dividers */}
+              <div style={{ position: 'absolute', top: '33.33%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.12)', zIndex: 1 }} />
+              <div style={{ position: 'absolute', top: '66.66%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.12)', zIndex: 1 }} />
+
+              {/* DEFENCE — top */}
+              {renderFieldZone('DEFENCE', '22%', '9%', '2%')}
+
+              {/* MIDFIELD — centre */}
+              {renderFieldZone('MIDFIELD', '8%', '2%', '2%')}
+
+              {/* FORWARD — bottom */}
+              {renderFieldZone('FORWARD', '22%', '2%', '9%')}
+            </div>
+
+            {/* Interchange */}
+            <div
+              className="w-full flex-shrink-0 rounded-2xl p-3 cursor-pointer transition-all duration-100"
+              style={{
+                maxWidth: '280px',
+                background: selectedId && !isZoneFull('BENCH')
+                  ? ZONE_STYLE.BENCH.hover
+                  : 'rgba(255,255,255,0.025)',
+                border: `1px solid ${selectedId && !isZoneFull('BENCH') ? ZONE_STYLE.BENCH.border : 'rgba(255,255,255,0.06)'}`,
+              }}
+              onClick={() => handleTapZone('BENCH')}
+            >
+              <p className="font-condensed text-[9px] uppercase tracking-[0.15em] font-bold mb-2 text-center"
+                style={{ color: ZONE_STYLE.BENCH.textColor }}>
+                Interchange · {getZonePlayers('BENCH').length} / {matchData.bench_size}
+              </p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {getZonePlayers('BENCH').map(p => (
+                  <PlayerChip key={p.id} player={p} onRemove={handleRemoveFromField} />
+                ))}
+                {Array.from({ length: matchData.bench_size - getZonePlayers('BENCH').length }).map((_, i) => (
+                  <EmptySlot key={i} />
                 ))}
               </div>
             </div>
 
-            {/* Zone columns */}
-            <div className="flex gap-3 flex-1 overflow-auto min-h-0">
-              {[...POSITIONS, 'BENCH'].map(zone => (
-                <div key={zone} className={`flex-1 rounded-xl border-2 ${POS_COLORS[zone] || 'border-sharks-border bg-sharks-surface/30'} p-2 flex flex-col gap-1`}>
-                  <div className={`font-condensed font-bold text-xs uppercase tracking-widest text-center pb-1 border-b border-sharks-border mb-1 ${
-                    zone === 'FORWARD' ? 'text-red-400' : zone === 'MIDFIELD' ? 'text-green-400' : zone === 'DEFENCE' ? 'text-indigo-400' : 'text-gray-400'
-                  }`}>
-                    {POS_LABELS[zone] || zone} ({counts[zone]}/{zone === 'BENCH' ? 4 : 6})
-                  </div>
-                  {selectedIds
-                    .filter(id => assignments[id] === zone)
-                    .map(id => {
-                      const p = players.find(pl => pl.id === id)
-                      return (
-                        <div key={id} className="bg-sharks-surface2 rounded-lg p-2 flex items-center gap-2">
-                          <span className="font-condensed font-black text-white text-lg">#{p.number}</span>
-                          <span className="font-condensed font-bold text-sm text-white uppercase flex-1">{p.last_name}</span>
-                        </div>
-                      )
-                    })
-                  }
-                </div>
-              ))}
-            </div>
-
-            {/* Player reassignment */}
-            <div className="bg-sharks-surface rounded-xl border border-sharks-border p-3">
-              <p className="font-condensed text-xs text-gray-400 uppercase tracking-wider mb-2">Tap a zone button to reassign each player:</p>
-              <div className="flex flex-wrap gap-2">
-                {selectedIds.map(id => {
-                  const p = players.find(pl => pl.id === id)
-                  const pos = assignments[id]
-                  return (
-                    <div key={id} className="flex items-center gap-1 bg-sharks-surface2 rounded-lg overflow-hidden">
-                      <span className="font-condensed font-bold text-sm text-white px-2 py-1">#{p.number} {p.last_name}</span>
-                      {[...POSITIONS, 'BENCH'].map(zone => (
-                        <button
-                          key={zone}
-                          onClick={() => reassign(id, zone)}
-                          className={`font-condensed text-xs font-semibold px-2 py-1 transition-colors ${
-                            pos === zone
-                              ? zone === 'FORWARD' ? 'bg-red-700 text-white'
-                                : zone === 'MIDFIELD' ? 'bg-green-700 text-white'
-                                : zone === 'DEFENCE' ? 'bg-indigo-700 text-white'
-                                : 'bg-gray-600 text-white'
-                              : 'hover:bg-sharks-surface text-gray-500 hover:text-gray-300'
-                          }`}
-                        >
-                          {POS_LABELS[zone] || zone.slice(0,5)}
-                        </button>
-                      ))}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            <button
-              onClick={handleStartMatch}
-              disabled={!isValid}
-              className="w-full h-16 bg-sharks-red hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-condensed font-black text-xl uppercase tracking-widest rounded-xl flex items-center justify-center gap-3 transition-colors flex-shrink-0 shadow-lg shadow-red-900/30"
-            >
-              Start Match <ChevronRight size={22} />
-            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
     </div>
   )
 }
