@@ -12,36 +12,84 @@ const POS = {
   BENCH:    { color: '#6b7280', label: 'INT' },
 }
 
-const ZONE_STYLE = {
-  DEFENCE:  { hover: 'rgba(79,70,229,0.2)',  border: 'rgba(79,70,229,0.45)',  textColor: 'rgba(165,180,252,0.7)' },
-  MIDFIELD: { hover: 'rgba(5,150,105,0.2)',  border: 'rgba(5,150,105,0.45)',  textColor: 'rgba(110,231,183,0.7)' },
-  FORWARD:  { hover: 'rgba(220,38,38,0.2)',  border: 'rgba(220,38,38,0.45)',  textColor: 'rgba(252,165,165,0.7)' },
-  BENCH:    { hover: 'rgba(107,114,128,0.2)', border: 'rgba(107,114,128,0.45)', textColor: 'rgba(209,213,219,0.7)' },
+const ZONE_ACCENT = {
+  DEFENCE:  { glow: 'rgba(79,70,229,0.35)',  ring: 'rgba(79,70,229,0.6)',  dim: 'rgba(79,70,229,0.12)' },
+  MIDFIELD: { glow: 'rgba(5,150,105,0.35)',  ring: 'rgba(5,150,105,0.6)',  dim: 'rgba(5,150,105,0.12)' },
+  FORWARD:  { glow: 'rgba(220,38,38,0.35)',  ring: 'rgba(220,38,38,0.6)',  dim: 'rgba(220,38,38,0.12)' },
+  BENCH:    { glow: 'rgba(107,114,128,0.35)', ring: 'rgba(107,114,128,0.6)', dim: 'rgba(107,114,128,0.12)' },
 }
 
-function PlayerChip({ player, onRemove }) {
+// Chip shown on the field for a placed player
+function FieldChip({ player, onRemove }) {
   return (
     <button
       onClick={e => { e.stopPropagation(); onRemove(player.id) }}
-      className="flex flex-col items-center rounded-lg px-1.5 py-1 transition-all hover:brightness-125 active:scale-95"
-      style={{ background: POS[player.primary_position].color, minWidth: '2.75rem' }}
-      title={`${player.first_name} ${player.last_name} — tap to remove`}
+      className="flex flex-col items-center rounded-md transition-all hover:brightness-125 active:scale-90"
+      style={{
+        background: POS[player.primary_position].color,
+        minWidth: '2.5rem',
+        paddingTop: 3, paddingBottom: 3, paddingLeft: 5, paddingRight: 5,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+      }}
     >
-      <span className="font-condensed font-black text-white text-base leading-none">{player.number}</span>
-      <span className="font-condensed text-white/75 text-[9px] leading-none tracking-wide">
-        {player.last_name.slice(0, 5).toUpperCase()}
+      <span className="font-condensed font-black text-white leading-none" style={{ fontSize: 15 }}>
+        {player.number}
+      </span>
+      <span className="font-condensed text-white/80 leading-none tracking-wide uppercase" style={{ fontSize: 8 }}>
+        {player.last_name.slice(0, 5)}
       </span>
     </button>
   )
 }
 
-function EmptySlot() {
+// Empty spot on the field
+function EmptySpot() {
   return (
     <div
-      className="rounded-lg flex items-center justify-center"
-      style={{ minWidth: '2.75rem', height: '2.375rem', border: '1px dashed rgba(255,255,255,0.12)' }}
+      className="rounded-md flex items-center justify-center"
+      style={{
+        minWidth: '2.5rem', height: '2.25rem',
+        border: '1.5px dashed rgba(255,255,255,0.18)',
+        background: 'rgba(0,0,0,0.12)',
+      }}
+    />
+  )
+}
+
+// A zone section inside the oval
+function FieldZone({ zone, players, benchSize, isZoneFull, selectedId, onTapZone, onRemove, padH, padTop, padBottom }) {
+  const zps = players
+  const max = zone === 'BENCH' ? benchSize : ZONE_MAX
+  const empties = max - zps.length
+  const canDrop = !!selectedId && !isZoneFull
+  const acc = ZONE_ACCENT[zone]
+
+  return (
+    <div
+      onClick={() => onTapZone(zone)}
+      className="flex flex-col items-center justify-center transition-all duration-100"
+      style={{
+        flex: 1,
+        paddingLeft: padH, paddingRight: padH,
+        paddingTop: padTop, paddingBottom: padBottom,
+        cursor: canDrop ? 'pointer' : 'default',
+        background: canDrop ? acc.dim : 'transparent',
+        boxShadow: canDrop ? `inset 0 0 0 1.5px ${acc.ring}` : 'none',
+      }}
     >
-      <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: '10px' }}>·</span>
+      {/* 3-column grid of chips + empty spots */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: '4px',
+          width: '100%',
+          justifyItems: 'center',
+        }}
+      >
+        {zps.map(p => <FieldChip key={p.id} player={p} onRemove={onRemove} />)}
+        {Array.from({ length: empties }).map((_, i) => <EmptySpot key={i} />)}
+      </div>
     </div>
   )
 }
@@ -98,42 +146,10 @@ export default function PreMatchSetup() {
 
   const selectedPlayer = activePlayers.find(p => p.id === selectedId)
 
-  const renderFieldZone = (zone, padH, padTop, padBottom) => {
-    const zps = getZonePlayers(zone)
-    const empties = ZONE_MAX - zps.length
-    const canDrop = !!selectedId && !isZoneFull(zone)
-    const zs = ZONE_STYLE[zone]
-
-    return (
-      <div
-        onClick={() => handleTapZone(zone)}
-        className="flex flex-col items-center justify-center cursor-pointer transition-all duration-100"
-        style={{
-          flex: 1,
-          paddingLeft: padH, paddingRight: padH,
-          paddingTop: padTop, paddingBottom: padBottom,
-          background: canDrop ? zs.hover : 'transparent',
-          boxShadow: canDrop ? `inset 0 0 0 1.5px ${zs.border}` : 'none',
-        }}
-      >
-        <span
-          className="font-condensed text-[8px] uppercase tracking-[0.15em] mb-1 font-bold"
-          style={{ color: zs.textColor }}
-        >
-          {zone}
-        </span>
-        <div className="flex flex-wrap justify-center gap-1">
-          {zps.map(p => <PlayerChip key={p.id} player={p} onRemove={handleRemoveFromField} />)}
-          {Array.from({ length: empties }).map((_, i) => <EmptySlot key={i} />)}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="h-screen flex flex-col bg-sharks-dark">
 
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
         <div className="flex items-center gap-4">
           <button
@@ -142,10 +158,7 @@ export default function PreMatchSetup() {
           >
             <ChevronLeft size={20} className="text-gray-400" />
           </button>
-          <img
-            src="/sharks-logo.png" alt="Sorrento Sharks"
-            className="h-10 w-auto" onError={e => { e.target.style.display = 'none' }}
-          />
+          <img src="/sharks-logo.png" alt="" className="h-10 w-auto" onError={e => { e.target.style.display = 'none' }} />
           <div className="h-6 w-px bg-sharks-border" />
           <div>
             <h1 className="font-condensed font-black text-white text-2xl uppercase tracking-wide leading-none">
@@ -168,8 +181,7 @@ export default function PreMatchSetup() {
                 : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
             }`}
           >
-            <Check size={16} />
-            Start Match
+            <Check size={16} /> Start Match
           </button>
         )}
       </div>
@@ -178,7 +190,6 @@ export default function PreMatchSetup() {
       {step === 1 && (
         <div className="flex-1 overflow-auto flex items-center justify-center p-6">
           <div className="w-full max-w-sm flex flex-col gap-5">
-
             <div>
               <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Opponent</label>
               <input
@@ -212,7 +223,6 @@ export default function PreMatchSetup() {
               </div>
             </div>
 
-            {/* Interchange stepper */}
             <div>
               <label className="font-condensed text-xs text-gray-400 uppercase tracking-wider block mb-1.5">Interchange</label>
               <div className="flex items-center bg-sharks-surface border border-sharks-border rounded-xl overflow-hidden h-14">
@@ -258,7 +268,7 @@ export default function PreMatchSetup() {
         <div className="flex-1 flex overflow-hidden">
 
           {/* Left: unassigned player list */}
-          <div className="w-40 flex-shrink-0 border-r border-sharks-border flex flex-col bg-sharks-surface">
+          <div className="w-36 flex-shrink-0 border-r border-sharks-border flex flex-col bg-sharks-surface">
             <div className="px-3 py-2 border-b border-sharks-border flex-shrink-0">
               <p className="font-condensed text-[10px] text-gray-500 uppercase tracking-widest">
                 Unplaced · {unassigned.length}
@@ -266,8 +276,8 @@ export default function PreMatchSetup() {
             </div>
             <div className="flex-1 overflow-auto">
               {unassigned.length === 0 ? (
-                <div className="flex items-center justify-center h-16 px-3">
-                  <p className="font-condensed text-xs text-gray-600 text-center">All players placed</p>
+                <div className="flex items-center justify-center h-16">
+                  <p className="font-condensed text-xs text-gray-600">All placed</p>
                 </div>
               ) : (
                 unassigned.map(player => (
@@ -277,12 +287,9 @@ export default function PreMatchSetup() {
                     className="w-full flex items-center gap-2 px-2.5 py-2 border-b transition-all text-left"
                     style={{
                       borderBottomColor: 'rgba(255,255,255,0.05)',
-                      borderLeftWidth: selectedId === player.id ? '3px' : '3px',
-                      borderLeftColor: selectedId === player.id ? '#CC0000' : 'transparent',
-                      background: selectedId === player.id ? 'rgba(204,0,0,0.08)' : 'transparent',
+                      borderLeft: `3px solid ${selectedId === player.id ? '#CC0000' : 'transparent'}`,
+                      background: selectedId === player.id ? 'rgba(204,0,0,0.1)' : 'transparent',
                     }}
-                    onMouseEnter={e => { if (selectedId !== player.id) e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
-                    onMouseLeave={e => { if (selectedId !== player.id) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div
                       className="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0"
@@ -294,7 +301,7 @@ export default function PreMatchSetup() {
                       <p className="font-condensed font-bold text-white text-sm uppercase leading-tight truncate">
                         {player.last_name}
                       </p>
-                      <p className="font-condensed text-[10px] leading-none font-bold" style={{ color: POS[player.primary_position].color }}>
+                      <p className="font-condensed text-[10px] font-bold leading-none" style={{ color: POS[player.primary_position].color }}>
                         {POS[player.primary_position].label}
                       </p>
                     </div>
@@ -305,118 +312,187 @@ export default function PreMatchSetup() {
           </div>
 
           {/* Right: AFL field */}
-          <div className="flex-1 overflow-auto p-3 flex flex-col items-center gap-2">
+          <div className="flex-1 overflow-auto flex flex-col items-center py-3 px-2 gap-2">
 
-            {/* Selected player hint */}
-            <div className="h-6 flex items-center justify-center flex-shrink-0">
+            {/* Hint bar */}
+            <div className="h-5 flex items-center justify-center flex-shrink-0 w-full">
               {selectedPlayer ? (
-                <p className="font-condensed text-xs text-gray-400">
+                <p className="font-condensed text-xs text-gray-400 text-center">
                   Placing{' '}
-                  <span
-                    className="font-bold"
-                    style={{ color: POS[selectedPlayer.primary_position].color }}
-                  >
+                  <span className="font-black" style={{ color: POS[selectedPlayer.primary_position].color }}>
                     #{selectedPlayer.number} {selectedPlayer.last_name}
                   </span>
-                  {' '}— tap a zone
+                  {' '}— tap a zone on the field
                 </p>
               ) : (
-                <p className="font-condensed text-xs text-gray-600">Tap a player to place them</p>
+                <p className="font-condensed text-xs text-gray-600">Select a player from the list</p>
               )}
             </div>
 
-            {/* AFL Oval */}
+            {/* ── AFL Oval ── */}
             <div
-              className="w-full flex-shrink-0 flex flex-col overflow-hidden"
+              className="flex-shrink-0 relative overflow-hidden flex flex-col"
               style={{
-                maxWidth: '280px',
-                borderRadius: '9999px',
-                border: '2px solid rgba(255,255,255,0.1)',
-                aspectRatio: '3 / 5',
-                background: 'linear-gradient(180deg, #14532d 0%, #15803d 30%, #166534 50%, #15803d 70%, #14532d 100%)',
-                position: 'relative',
+                width: '100%',
+                maxWidth: 310,
+                // True ellipse: border-radius 50% creates a perfect oval
+                borderRadius: '50%',
+                aspectRatio: '10 / 15',
+                background: 'linear-gradient(180deg, #14a347 0%, #16a34a 40%, #15803d 50%, #16a34a 60%, #14a347 100%)',
+                border: '3px solid rgba(255,255,255,0.15)',
+                boxShadow: '0 0 0 1px rgba(0,0,0,0.4), 0 8px 32px rgba(0,0,0,0.6)',
               }}
             >
-              {/* Decorative markings (non-interactive) */}
-              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+              {/* ── Field markings (non-interactive) ── */}
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
+
+                {/* Goal square — top (defence end) */}
+                <div style={{
+                  position: 'absolute', top: '3%', left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 36, height: 16,
+                  border: '1.5px solid rgba(255,255,255,0.35)',
+                  borderRadius: 2,
+                }} />
+
+                {/* Goal square — bottom (forward end) */}
+                <div style={{
+                  position: 'absolute', bottom: '3%', left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 36, height: 16,
+                  border: '1.5px solid rgba(255,255,255,0.35)',
+                  borderRadius: 2,
+                }} />
+
+                {/* 50m arc — top */}
+                <div style={{
+                  position: 'absolute', top: '26%', left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 130, height: 65,
+                  borderBottom: '1.5px solid rgba(255,255,255,0.25)',
+                  borderLeft: '1.5px solid rgba(255,255,255,0.25)',
+                  borderRight: '1.5px solid rgba(255,255,255,0.25)',
+                  borderRadius: '0 0 65px 65px',
+                }} />
+
+                {/* 50m arc — bottom */}
+                <div style={{
+                  position: 'absolute', bottom: '26%', left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 130, height: 65,
+                  borderTop: '1.5px solid rgba(255,255,255,0.25)',
+                  borderLeft: '1.5px solid rgba(255,255,255,0.25)',
+                  borderRight: '1.5px solid rgba(255,255,255,0.25)',
+                  borderRadius: '65px 65px 0 0',
+                }} />
+
                 {/* Centre circle */}
                 <div style={{
                   position: 'absolute', top: '50%', left: '50%',
-                  width: 56, height: 56,
                   transform: 'translate(-50%, -50%)',
+                  width: 72, height: 72,
                   borderRadius: '50%',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: '1.5px solid rgba(255,255,255,0.3)',
                 }} />
+
+                {/* Centre square */}
+                <div style={{
+                  position: 'absolute', top: '50%', left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: 44, height: 44,
+                  border: '1.5px solid rgba(255,255,255,0.2)',
+                }} />
+
                 {/* Centre dot */}
                 <div style={{
                   position: 'absolute', top: '50%', left: '50%',
-                  width: 6, height: 6,
                   transform: 'translate(-50%, -50%)',
+                  width: 7, height: 7,
                   borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.15)',
+                  background: 'rgba(255,255,255,0.4)',
                 }} />
-                {/* Top 50m arc */}
-                <div style={{
-                  position: 'absolute', top: '22%', left: '50%',
-                  width: 80, height: 40,
-                  transform: 'translateX(-50%)',
-                  borderBottom: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '0 0 50% 50%',
-                }} />
-                {/* Bottom 50m arc */}
-                <div style={{
-                  position: 'absolute', bottom: '22%', left: '50%',
-                  width: 80, height: 40,
-                  transform: 'translateX(-50%)',
-                  borderTop: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '50% 50% 0 0',
-                }} />
+
+                {/* Zone divider lines */}
+                <div style={{ position: 'absolute', top: '33.33%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.18)' }} />
+                <div style={{ position: 'absolute', top: '66.66%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.18)' }} />
               </div>
 
-              {/* Zone dividers */}
-              <div style={{ position: 'absolute', top: '33.33%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.12)', zIndex: 1 }} />
-              <div style={{ position: 'absolute', top: '66.66%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.12)', zIndex: 1 }} />
+              {/* ── DEFENCE zone (top third) ── */}
+              <FieldZone
+                zone="DEFENCE"
+                players={getZonePlayers('DEFENCE')}
+                benchSize={matchData.bench_size}
+                isZoneFull={isZoneFull('DEFENCE')}
+                selectedId={selectedId}
+                onTapZone={handleTapZone}
+                onRemove={handleRemoveFromField}
+                padH="20%"
+                padTop="12%"
+                padBottom="4%"
+              />
 
-              {/* DEFENCE — top */}
-              {renderFieldZone('DEFENCE', '22%', '9%', '2%')}
+              {/* ── MIDFIELD zone (centre third) ── */}
+              <FieldZone
+                zone="MIDFIELD"
+                players={getZonePlayers('MIDFIELD')}
+                benchSize={matchData.bench_size}
+                isZoneFull={isZoneFull('MIDFIELD')}
+                selectedId={selectedId}
+                onTapZone={handleTapZone}
+                onRemove={handleRemoveFromField}
+                padH="6%"
+                padTop="4%"
+                padBottom="4%"
+              />
 
-              {/* MIDFIELD — centre */}
-              {renderFieldZone('MIDFIELD', '8%', '2%', '2%')}
-
-              {/* FORWARD — bottom */}
-              {renderFieldZone('FORWARD', '22%', '2%', '9%')}
+              {/* ── FORWARD zone (bottom third) ── */}
+              <FieldZone
+                zone="FORWARD"
+                players={getZonePlayers('FORWARD')}
+                benchSize={matchData.bench_size}
+                isZoneFull={isZoneFull('FORWARD')}
+                selectedId={selectedId}
+                onTapZone={handleTapZone}
+                onRemove={handleRemoveFromField}
+                padH="20%"
+                padTop="4%"
+                padBottom="12%"
+              />
             </div>
 
-            {/* Interchange */}
+            {/* ── Interchange (below oval) ── */}
             <div
-              className="w-full flex-shrink-0 rounded-2xl p-3 cursor-pointer transition-all duration-100"
+              className="flex-shrink-0 rounded-2xl p-3 transition-all duration-100"
               style={{
-                maxWidth: '280px',
+                width: '100%',
+                maxWidth: 310,
                 background: selectedId && !isZoneFull('BENCH')
-                  ? ZONE_STYLE.BENCH.hover
-                  : 'rgba(255,255,255,0.025)',
-                border: `1px solid ${selectedId && !isZoneFull('BENCH') ? ZONE_STYLE.BENCH.border : 'rgba(255,255,255,0.06)'}`,
+                  ? ZONE_ACCENT.BENCH.dim
+                  : 'rgba(255,255,255,0.03)',
+                border: `1.5px solid ${selectedId && !isZoneFull('BENCH') ? ZONE_ACCENT.BENCH.ring : 'rgba(255,255,255,0.07)'}`,
+                cursor: selectedId && !isZoneFull('BENCH') ? 'pointer' : 'default',
               }}
               onClick={() => handleTapZone('BENCH')}
             >
-              <p className="font-condensed text-[9px] uppercase tracking-[0.15em] font-bold mb-2 text-center"
-                style={{ color: ZONE_STYLE.BENCH.textColor }}>
+              <p className="font-condensed text-[9px] uppercase tracking-[0.15em] font-bold mb-2 text-center text-gray-500">
                 Interchange · {getZonePlayers('BENCH').length} / {matchData.bench_size}
               </p>
-              <div className="flex flex-wrap justify-center gap-1.5">
-                {getZonePlayers('BENCH').map(p => (
-                  <PlayerChip key={p.id} player={p} onRemove={handleRemoveFromField} />
-                ))}
-                {Array.from({ length: matchData.bench_size - getZonePlayers('BENCH').length }).map((_, i) => (
-                  <EmptySlot key={i} />
-                ))}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${Math.min(matchData.bench_size, 5)}, minmax(0, 1fr))`,
+                  gap: 4,
+                  justifyItems: 'center',
+                }}
+              >
+                {getZonePlayers('BENCH').map(p => <FieldChip key={p.id} player={p} onRemove={handleRemoveFromField} />)}
+                {Array.from({ length: matchData.bench_size - getZonePlayers('BENCH').length }).map((_, i) => <EmptySpot key={i} />)}
               </div>
             </div>
 
           </div>
         </div>
       )}
-
     </div>
   )
 }
