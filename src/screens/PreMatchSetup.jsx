@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Check, Plus, Minus, Home } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check, Plus, Minus, Home, Repeat2 } from 'lucide-react'
 import { useGameStore } from '../store/useGameStore'
 import { ZONE_POSITIONS as ZONE_POS_CONFIG, POS_TO_ZONE } from '../lib/positions'
+import RotationPanel from '../components/RotationPanel'
 
 // Flatten to the shape used in this file: { id, label (short) }
 const ZONE_POSITIONS = Object.fromEntries(
@@ -159,7 +160,7 @@ export default function PreMatchSetup() {
     setSelectedId(id)
   }
 
-  const handleStart = () => {
+  const saveTeam = () => {
     if (!canStart || !currentMatch) return
     setMatchPlayers(
       Object.entries(assignments).map(([player_id, posId]) => ({
@@ -169,7 +170,18 @@ export default function PreMatchSetup() {
         status: 'ACTIVE',
       }))
     )
+  }
+
+  const handleStart = () => {
+    if (!canStart || !currentMatch) return
+    saveTeam()
     navigate('/match/live')
+  }
+
+  const handleToRotations = () => {
+    if (!canStart || !currentMatch) return
+    saveTeam()
+    setStep(3)
   }
 
   // Render a 3×2 zone grid inside the oval
@@ -205,37 +217,69 @@ export default function PreMatchSetup() {
     <div className="h-dvh flex flex-col bg-sharks-dark">
 
       {/* Header */}
-      <div className="flex items-center justify-between px-6 h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
-        <div className="flex items-center gap-4">
-          <button onClick={() => isEditMode ? navigate('/match/live') : step === 1 ? navigate('/') : setStep(1)}
-            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors">
+      <div className="flex items-center justify-between px-4 sm:px-6 h-[60px] sm:h-[72px] bg-sharks-surface border-b border-sharks-border flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (step === 3) { setStep(2); return }
+              if (isEditMode) { navigate('/match/live'); return }
+              if (step === 1) { navigate('/'); return }
+              setStep(1)
+            }}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors"
+          >
             <ChevronLeft size={20} className="text-gray-400" />
           </button>
           <button onClick={() => navigate('/')}
-            className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors">
-            <Home size={18} className="text-gray-400" />
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-sharks-surface2 transition-colors">
+            <Home size={17} className="text-gray-400" />
           </button>
-          <img src="/sharks-logo.png" alt="" className="h-10 w-auto" onError={e => { e.target.style.display = 'none' }} />
-          <div className="h-6 w-px bg-sharks-border" />
+          <img src="/sharks-logo.png" alt="" className="h-9 w-auto hidden sm:block" onError={e => { e.target.style.display = 'none' }} />
+          <div className="h-6 w-px bg-sharks-border hidden sm:block" />
           <div>
-            <h1 className="font-condensed font-black text-white text-2xl uppercase tracking-wide leading-none">
-              {isEditMode ? 'Change Team' : step === 1 ? 'New Match' : 'Team Selection'}
+            <h1 className="font-condensed font-black text-white text-xl sm:text-2xl uppercase tracking-wide leading-none">
+              {isEditMode
+                ? (step === 3 ? 'Rotations' : 'Change Team')
+                : step === 1 ? 'New Match'
+                : step === 2 ? 'Team Selection'
+                : 'Rotations'}
             </h1>
             <p className="font-condensed text-gray-500 text-xs mt-0.5">
               {step === 1
-                ? `Step 1 of 2 · ${18 + matchData.bench_size} players needed`
-                : `${totalAssigned} / ${totalNeeded} placed`}
+                ? `Step 1 · ${18 + matchData.bench_size} players needed`
+                : step === 2
+                ? `Step 2 · ${totalAssigned} / ${totalNeeded} placed`
+                : 'Step 3 · optional'}
             </p>
           </div>
         </div>
-        {step === 2 && (
-          <button onClick={handleStart} disabled={!canStart}
-            className={`h-11 px-5 font-condensed font-bold text-sm uppercase tracking-wide rounded-xl flex items-center gap-2 transition-all ${
-              canStart ? 'bg-sharks-red hover:bg-red-700 text-white' : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
-            }`}>
-            <Check size={16} /> {isEditMode ? 'Save Team' : 'Start Match'}
-          </button>
-        )}
+
+        {/* Header actions */}
+        <div className="flex items-center gap-2">
+          {step === 2 && !isEditMode && canStart && (
+            <button
+              onClick={handleToRotations}
+              className="h-9 px-3 font-condensed font-bold text-xs uppercase tracking-wide rounded-lg flex items-center gap-1.5 text-gray-400 hover:text-white border border-sharks-border hover:border-gray-500 transition-all"
+            >
+              <Repeat2 size={13} /> Rotations
+            </button>
+          )}
+          {step === 2 && (
+            <button onClick={handleStart} disabled={!canStart}
+              className={`h-9 sm:h-11 px-4 sm:px-5 font-condensed font-bold text-sm uppercase tracking-wide rounded-xl flex items-center gap-2 transition-all ${
+                canStart ? 'bg-sharks-red hover:bg-red-700 text-white' : 'bg-sharks-surface2 text-gray-600 cursor-not-allowed'
+              }`}>
+              <Check size={15} /> {isEditMode ? 'Save' : 'Start'}
+            </button>
+          )}
+          {step === 3 && (
+            <button onClick={() => navigate('/match/live')}
+              className="h-9 sm:h-11 px-4 sm:px-5 font-condensed font-bold text-sm uppercase tracking-wide rounded-xl flex items-center gap-2 bg-sharks-red hover:bg-red-700 text-white transition-all"
+            >
+              <Check size={15} /> Start Match
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Step 1 */}
@@ -294,6 +338,13 @@ export default function PreMatchSetup() {
               Select Team <ChevronRight size={16} />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Step 3 — Rotations */}
+      {step === 3 && (
+        <div className="flex-1 overflow-hidden min-h-0">
+          <RotationPanel setupMode={true} />
         </div>
       )}
 

@@ -10,9 +10,11 @@ export const useGameStore = create((set, get) => ({
   rotationEvents: [],
   gameState: { quarter: 1, isRunning: false, quarterSeconds: 0 },
   selectedPlayerId: null,
-  playerTimers: {}, // { [playerId]: { togSeconds: 0, zoneSeconds: { FORWARD: 0, MIDFIELD: 0, DEFENCE: 0, BENCH: 0 }, lastTickPosition: 'BENCH' } }
+  playerTimers: {}, // { [playerId]: { togSeconds, stintSeconds, injuredSeconds, zoneSeconds, lastTickPosition } }
   quarterHistory: {}, // { [quarter]: { report data } }
   showQuarterReport: false,
+  rotationGroups: [], // [{ id, match_id, name, player_ids, rotation_times, is_active, current_step }]
+  rotationAlerts: [], // [{ groupId, groupName, playerOnId, playerOffId, step }]
 
   // Player CRUD
   addPlayer: (player) => {
@@ -60,6 +62,8 @@ export const useGameStore = create((set, get) => ({
       currentMatch: match,
       matchPlayers: [],
       rotationEvents: [],
+      rotationGroups: [],
+      rotationAlerts: [],
       gameState: { quarter: 1, isRunning: false, quarterSeconds: 0 },
       playerTimers: {},
     }))
@@ -74,11 +78,12 @@ export const useGameStore = create((set, get) => ({
 
   // Reset clock + timers, keep same match + team
   restartMatch: () => {
-    const { currentMatch, matchPlayers } = get()
+    const { currentMatch, matchPlayers, rotationGroups } = get()
     if (!currentMatch) return
     const freshGameState = { quarter: 1, isRunning: false, quarterSeconds: 0 }
     const freshMatch = { ...currentMatch, game_state: freshGameState, quarter_history: {} }
     const resetMatchPlayers = matchPlayers.map(mp => ({ ...mp, player_timers: {} }))
+    const resetGroups = rotationGroups.map(g => ({ ...g, current_step: 0 }))
     set({
       currentMatch: freshMatch,
       matches: get().matches.map(m => m.id === currentMatch.id ? freshMatch : m),
@@ -88,13 +93,18 @@ export const useGameStore = create((set, get) => ({
       quarterHistory: {},
       showQuarterReport: false,
       matchPlayers: resetMatchPlayers,
+      rotationGroups: resetGroups,
+      rotationAlerts: [],
     })
     if (supabase) {
       Promise.all([
         supabase.from('matches').update({ game_state: freshGameState, quarter_history: {} }).eq('id', currentMatch.id),
         supabase.from('rotation_events').delete().eq('match_id', currentMatch.id),
         supabase.from('match_players').upsert(resetMatchPlayers),
-      ]).then(([, , mpErr]) => { if (mpErr?.error) console.error('restartMatch:', mpErr.error) })
+        ...resetGroups.map(g => supabase.from('rotation_groups').update({ current_step: 0 }).eq('id', g.id)),
+      ]).then(results => {
+        results.forEach(r => { if (r?.error) console.error('restartMatch:', r.error) })
+      })
     } else {
       get().saveToLocalStorage()
     }
@@ -113,7 +123,7 @@ export const useGameStore = create((set, get) => ({
 
   // Selection and rotation
   selectPlayer: (playerId) => {
-    const { selectedPlayerId, matchPlayers, rotationEvents, gameState, playerTimers } = get()
+    const { selectedPlayerId, matchPlayers, rotationEvents, gameState, playerTimers, rotationGroups } = get()
 
     if (!selectedPlayerId) {
       set({ selectedPlayerId: playerId })
@@ -157,17 +167,34 @@ export const useGameStore = create((set, get) => ({
       wall_time: now.toISOString(),
     }
 
-    // Swap both zone (current_position) AND named slot (named_position) so
-    // players are always pinned to the slot they physically moved into.
+    // Swap both zone (current_position) AND named slot (named_position)
     const newMatchPlayers = matchPlayers.map(mp => {
       if (mp.player_id === selectedPlayerId) return { ...mp, current_position: toPos, named_position: player2Mp.named_position }
       if (mp.player_id === playerId) return { ...mp, current_position: fromPos, named_position: player1Mp.named_position }
       return mp
     })
 
+    // If either swapped player is in a rotation group, replace them with the other player
+    const newRotationGroups = rotationGroups.map(g => {
+      const idx = g.player_ids.indexOf(selectedPlayerId)
+      if (idx !== -1) {
+        const newIds = [...g.player_ids]
+        newIds[idx] = playerId
+        return { ...g, player_ids: newIds }
+      }
+      const idx2 = g.player_ids.indexOf(playerId)
+      if (idx2 !== -1) {
+        const newIds = [...g.player_ids]
+        newIds[idx2] = selectedPlayerId
+        return { ...g, player_ids: newIds }
+      }
+      return g
+    })
+
     set({
       matchPlayers: newMatchPlayers,
       rotationEvents: [...rotationEvents, event1, event2],
+      rotationGroups: newRotationGroups,
       selectedPlayerId: null,
     })
 
@@ -179,15 +206,17 @@ export const useGameStore = create((set, get) => ({
     if (supabase) {
       const mp1 = newMatchPlayers.find(mp => mp.player_id === selectedPlayerId)
       const mp2 = newMatchPlayers.find(mp => mp.player_id === playerId)
+      const changedGroups = newRotationGroups.filter((g, i) => g.player_ids !== rotationGroups[i]?.player_ids)
       Promise.all([
         supabase.from('rotation_events').insert([event1, event2]),
         supabase.from('match_players').upsert([
           { match_id: mp1.match_id, player_id: mp1.player_id, current_position: mp1.current_position, named_position: mp1.named_position, status: mp1.status, player_timers: newTimers[mp1.player_id] || {} },
           { match_id: mp2.match_id, player_id: mp2.player_id, current_position: mp2.current_position, named_position: mp2.named_position, status: mp2.status, player_timers: newTimers[mp2.player_id] || {} },
         ]),
-      ]).then(([evRes, mpRes]) => {
-        if (evRes.error) console.error('rotation_events insert:', evRes.error)
-        if (mpRes.error) console.error('match_players upsert:', mpRes.error)
+        ...changedGroups.map(g => supabase.from('rotation_groups').update({ player_ids: g.player_ids }).eq('id', g.id)),
+      ]).then(results => {
+        if (results[0]?.error) console.error('rotation_events insert:', results[0].error)
+        if (results[1]?.error) console.error('match_players upsert:', results[1].error)
       })
     } else {
       get().saveToLocalStorage()
@@ -234,9 +263,48 @@ export const useGameStore = create((set, get) => ({
     }
   },
 
+  // Rotation groups
+  addRotationGroup: (group) => {
+    const newGroup = { ...group, id: `rg_${Date.now()}`, current_step: 0 }
+    set(s => ({ rotationGroups: [...s.rotationGroups, newGroup] }))
+    if (supabase) {
+      supabase.from('rotation_groups').insert(newGroup)
+        .then(({ error }) => { if (error) console.error('addRotationGroup:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
+  },
+
+  updateRotationGroup: (id, data) => {
+    set(s => ({ rotationGroups: s.rotationGroups.map(g => g.id === id ? { ...g, ...data } : g) }))
+    if (supabase) {
+      supabase.from('rotation_groups').update(data).eq('id', id)
+        .then(({ error }) => { if (error) console.error('updateRotationGroup:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
+  },
+
+  deleteRotationGroup: (id) => {
+    set(s => ({
+      rotationGroups: s.rotationGroups.filter(g => g.id !== id),
+      rotationAlerts: s.rotationAlerts.filter(a => a.groupId !== id),
+    }))
+    if (supabase) {
+      supabase.from('rotation_groups').delete().eq('id', id)
+        .then(({ error }) => { if (error) console.error('deleteRotationGroup:', error) })
+    } else {
+      get().saveToLocalStorage()
+    }
+  },
+
+  dismissRotationAlert: (groupId) => {
+    set(s => ({ rotationAlerts: s.rotationAlerts.filter(a => a.groupId !== groupId) }))
+  },
+
   // Game clock
   tickSecond: () => {
-    const { gameState, matchPlayers, playerTimers } = get()
+    const { gameState, matchPlayers, playerTimers, rotationGroups, rotationAlerts } = get()
     if (!gameState.isRunning) return
 
     const newQuarterSeconds = gameState.quarterSeconds + 1
@@ -264,7 +332,27 @@ export const useGameStore = create((set, get) => ({
       newTimers[mp.player_id] = timer
     })
 
-    set({ gameState: { ...gameState, quarterSeconds: newQuarterSeconds }, playerTimers: newTimers })
+    // Check rotation group timers
+    const newAlerts = [...rotationAlerts]
+    const updatedGroups = rotationGroups.map(g => {
+      if (!g.is_active) return g
+      const nextTime = g.rotation_times[g.current_step]
+      if (nextTime === undefined || newQuarterSeconds !== nextTime) return g
+      // Don't double-alert if one is already pending for this group
+      if (newAlerts.find(a => a.groupId === g.id)) return g
+      const len = g.player_ids.length
+      const playerOnId = g.player_ids[g.current_step % len]
+      const playerOffId = g.player_ids[(g.current_step + 1) % len]
+      newAlerts.push({ groupId: g.id, groupName: g.name, playerOnId, playerOffId, step: g.current_step })
+      return { ...g, current_step: g.current_step + 1 }
+    })
+
+    set({
+      gameState: { ...gameState, quarterSeconds: newQuarterSeconds },
+      playerTimers: newTimers,
+      rotationGroups: updatedGroups,
+      rotationAlerts: newAlerts,
+    })
   },
 
   startQuarter: () => {
@@ -341,26 +429,35 @@ export const useGameStore = create((set, get) => ({
   },
 
   startNextQuarter: () => {
-    const { gameState, playerTimers } = get()
-    // Reset stint timers for all players at start of new quarter
+    const { gameState, playerTimers, rotationGroups } = get()
+    // Reset stint timers and rotation steps for new quarter
     const newTimers = {}
     Object.entries(playerTimers).forEach(([id, t]) => {
       newTimers[id] = { ...t, stintSeconds: 0 }
     })
+    const resetGroups = rotationGroups.map(g => ({ ...g, current_step: 0 }))
     set({
       gameState: { quarter: Math.min(gameState.quarter + 1, 4), isRunning: false, quarterSeconds: 0 },
       showQuarterReport: false,
       playerTimers: newTimers,
+      rotationGroups: resetGroups,
+      rotationAlerts: [],
     })
+    if (supabase) {
+      resetGroups.forEach(g => {
+        supabase.from('rotation_groups').update({ current_step: 0 }).eq('id', g.id)
+          .then(({ error }) => { if (error) console.error('startNextQuarter rotation_groups:', error) })
+      })
+    }
   },
 
   dismissQuarterReport: () => set({ showQuarterReport: false }),
 
   // LocalStorage (fallback when Supabase not configured)
   saveToLocalStorage: () => {
-    const { players, matches, currentMatch, matchPlayers, rotationEvents, gameState, playerTimers, quarterHistory } = get()
+    const { players, matches, currentMatch, matchPlayers, rotationEvents, gameState, playerTimers, quarterHistory, rotationGroups } = get()
     try {
-      localStorage.setItem('rotationiq', JSON.stringify({ players, matches, currentMatch, matchPlayers, rotationEvents, gameState, playerTimers, quarterHistory }))
+      localStorage.setItem('rotationiq', JSON.stringify({ players, matches, currentMatch, matchPlayers, rotationEvents, gameState, playerTimers, quarterHistory, rotationGroups }))
     } catch (e) { console.warn('localStorage save failed', e) }
   },
 
@@ -392,14 +489,17 @@ export const useGameStore = create((set, get) => ({
       let matchPlayers = []
       let rotationEvents = []
       let playerTimers = {}
+      let rotationGroups = []
 
       if (currentMatch) {
-        const [mpRes, eventsRes] = await Promise.all([
+        const [mpRes, eventsRes, rgRes] = await Promise.all([
           supabase.from('match_players').select('*').eq('match_id', currentMatch.id),
           supabase.from('rotation_events').select('*').eq('match_id', currentMatch.id).order('wall_time'),
+          supabase.from('rotation_groups').select('*').eq('match_id', currentMatch.id),
         ])
         matchPlayers = mpRes.data || []
         rotationEvents = eventsRes.data || []
+        rotationGroups = rgRes.data || []
         matchPlayers.forEach(mp => {
           if (mp.player_timers && Object.keys(mp.player_timers).length > 0) {
             playerTimers[mp.player_id] = mp.player_timers
@@ -414,6 +514,8 @@ export const useGameStore = create((set, get) => ({
         matchPlayers,
         rotationEvents,
         playerTimers,
+        rotationGroups,
+        rotationAlerts: [],
         gameState: currentMatch?.game_state || { quarter: 1, isRunning: false, quarterSeconds: 0 },
         quarterHistory: currentMatch?.quarter_history || {},
       })
