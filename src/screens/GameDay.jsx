@@ -9,6 +9,7 @@ import FieldOvalView from '../components/FieldOvalView'
 import RotationPanel from '../components/RotationPanel'
 import QuarterReportModal from '../components/QuarterReportModal'
 import { LayoutGrid, Circle, Repeat2, HeartCrack, X } from 'lucide-react'
+import { buildRotationInfoMap, buildZoneIndicators } from '../lib/rotationColors'
 
 function fmt(s) {
   const t = s || 0
@@ -27,6 +28,11 @@ export default function GameDay() {
   const currentMatch     = useGameStore(s => s.currentMatch)
   const rotationAlerts   = useGameStore(s => s.rotationAlerts)
   const dismissRotationAlert = useGameStore(s => s.dismissRotationAlert)
+  const rotationGroups   = useGameStore(s => s.rotationGroups)
+  const gameState        = useGameStore(s => s.gameState)
+
+  const rotationInfoMap  = buildRotationInfoMap(rotationGroups, gameState)
+  const zoneIndicators   = buildZoneIndicators(rotationGroups, matchPlayers, gameState)
 
   const [view, setView] = useState('zones') // 'zones' | 'field' | 'rotations'
 
@@ -154,6 +160,8 @@ export default function GameDay() {
                 playerTimers={playerTimers}
                 selectedPlayerId={selectedPlayerId}
                 onSelectPlayer={selectPlayer}
+                rotationInfoMap={rotationInfoMap}
+                zoneIndicators={zoneIndicators[zone]}
               />
             ))}
           </div>
@@ -163,6 +171,7 @@ export default function GameDay() {
             playerTimers={playerTimers}
             selectedPlayerId={selectedPlayerId}
             onSelectPlayer={selectPlayer}
+            rotationInfoMap={rotationInfoMap}
           />
         </div>
       )}

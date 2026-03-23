@@ -2,7 +2,7 @@ import { Heart } from 'lucide-react'
 import PlayerCard from './PlayerCard'
 import { useGameStore } from '../store/useGameStore'
 
-export default function BenchPanel({ players, matchPlayers, playerTimers, selectedPlayerId, onSelectPlayer }) {
+export default function BenchPanel({ players, matchPlayers, playerTimers, selectedPlayerId, onSelectPlayer, rotationInfoMap }) {
   const markInjured = useGameStore(s => s.markInjured)
   const returnFromInjury = useGameStore(s => s.returnFromInjury)
 
@@ -50,6 +50,7 @@ export default function BenchPanel({ players, matchPlayers, playerTimers, select
                 isSelected={selectedPlayerId === player.id}
                 onSelect={onSelectPlayer}
                 compact
+                rotationInfo={rotationInfoMap?.[player.id] || null}
               />
             </div>
           )

@@ -1,5 +1,6 @@
 import { useGameStore } from '../store/useGameStore'
 import { ZONE_POSITIONS } from '../lib/positions'
+import { buildRotationInfoMap } from '../lib/rotationColors'
 
 const fmt = s => {
   const t = s || 0
@@ -22,19 +23,30 @@ const EMPTY_SLOT = (key) => (
 )
 
 // Player card used inside the oval and interchange
-function OvalPlayerCard({ player, matchPlayer, timer, isSelected, onSelect }) {
+function OvalPlayerCard({ player, matchPlayer, timer, isSelected, onSelect, rotationInfo }) {
   const isOnField = matchPlayer?.current_position !== 'BENCH'
   const stint = timer?.stintSeconds || 0
   const tog   = timer?.togSeconds   || 0
   const bench = timer?.zoneSeconds?.BENCH || 0
 
+  // Rotation derived state
+  const showCountdown = rotationInfo?.isNextOff && rotationInfo?.isApproaching
+  const countdownSecs = rotationInfo?.secondsUntil ?? 0
+  const countdownUrgent = countdownSecs <= 30 || rotationInfo?.isOverdue
+  const countdownText = rotationInfo?.isOverdue
+    ? 'LATE'
+    : `${Math.floor(Math.max(0, countdownSecs) / 60)}:${String(Math.max(0, countdownSecs) % 60).padStart(2, '0')}`
+
   return (
     <button
       onClick={() => onSelect(player.id)}
-      className="w-full flex items-center gap-2 rounded-lg transition-all active:scale-95"
+      className="w-full flex items-center gap-2 rounded-lg transition-all active:scale-95 overflow-hidden relative"
       style={{
         background: isSelected ? 'rgba(204,0,0,0.18)' : 'rgba(10,14,20,0.82)',
         border: `1.5px solid ${isSelected ? '#CC0000' : 'rgba(255,255,255,0.14)'}`,
+        borderLeft: rotationInfo && !isSelected
+          ? `3px solid ${rotationInfo.groupColor}`
+          : isSelected ? '1.5px solid #CC0000' : '1.5px solid rgba(255,255,255,0.14)',
         padding: '5px 7px',
         height: 44,
         boxShadow: isSelected ? '0 0 0 1px rgba(204,0,0,0.4)' : '0 1px 4px rgba(0,0,0,0.5)',
@@ -53,7 +65,20 @@ function OvalPlayerCard({ player, matchPlayer, timer, isSelected, onSelect }) {
         <span className="font-condensed font-bold text-white uppercase leading-none truncate w-full" style={{ fontSize: 12 }}>
           {player.first_name.charAt(0)}.{player.last_name}
         </span>
-        {isOnField ? (
+        {showCountdown ? (
+          <div className="flex items-center gap-1 leading-none mt-0.5">
+            <span
+              className={`font-condensed font-black tabular-nums px-1 rounded leading-none ${countdownUrgent ? 'animate-pulse' : ''}`}
+              style={{
+                fontSize: 10,
+                background: countdownUrgent ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)',
+                color: countdownUrgent ? '#EF4444' : '#F59E0B',
+              }}
+            >
+              {countdownText}
+            </span>
+          </div>
+        ) : isOnField ? (
           <div className="flex items-center gap-1.5 leading-none mt-0.5">
             <span className="font-condensed text-yellow-400 font-bold tabular-nums" style={{ fontSize: 10 }}>
               {fmt(stint)}
@@ -71,6 +96,18 @@ function OvalPlayerCard({ player, matchPlayer, timer, isSelected, onSelect }) {
           </div>
         )}
       </div>
+
+      {/* Status dot (next on = blue, next off approaching = amber/red) */}
+      {rotationInfo && !isSelected && (rotationInfo.isNextOn || rotationInfo.isNextOff) && (
+        <div
+          className={`w-[7px] h-[7px] rounded-full flex-shrink-0 ${countdownUrgent && rotationInfo.isNextOff ? 'animate-pulse' : ''}`}
+          style={{
+            background: rotationInfo.isNextOn
+              ? '#60A5FA'
+              : countdownUrgent ? '#EF4444' : '#F59E0B',
+          }}
+        />
+      )}
 
       {isSelected && (
         <div className="w-2 h-2 rounded-full bg-sharks-red animate-ping flex-shrink-0" />
@@ -100,7 +137,7 @@ function buildSlotMap(zoneName, players, matchPlayers) {
 }
 
 // Zone renderer — handles midfield 1-4-1 and defence/forward 3×2 grid
-function OvalZone({ zone, label, padH, padTop, padBottom, players, matchPlayers, playerTimers, selectedPlayerId, onSelect, canHighlight }) {
+function OvalZone({ zone, label, padH, padTop, padBottom, players, matchPlayers, playerTimers, selectedPlayerId, onSelect, canHighlight, rotationInfoMap }) {
   const slotMap = buildSlotMap(zone, players, matchPlayers)
 
   const card = (posId) => {
@@ -114,6 +151,7 @@ function OvalZone({ zone, label, padH, padTop, padBottom, players, matchPlayers,
         timer={playerTimers[p.id]}
         isSelected={selectedPlayerId === p.id}
         onSelect={onSelect}
+        rotationInfo={rotationInfoMap?.[p.id] || null}
       />
     )
   }
@@ -167,6 +205,10 @@ export default function FieldOvalView() {
   const selectedPlayerId = useGameStore(s => s.selectedPlayerId)
   const selectPlayer     = useGameStore(s => s.selectPlayer)
   const returnFromInjury = useGameStore(s => s.returnFromInjury)
+  const rotationGroups   = useGameStore(s => s.rotationGroups)
+  const gameState        = useGameStore(s => s.gameState)
+
+  const rotationInfoMap = buildRotationInfoMap(rotationGroups, gameState)
 
   const matchPlayerIds = new Set(matchPlayers.map(m => m.player_id))
   const activePlayers  = players.filter(p => matchPlayerIds.has(p.id))
@@ -203,6 +245,7 @@ export default function FieldOvalView() {
               timer={playerTimers[p.id]}
               isSelected={selectedPlayerId === p.id}
               onSelect={selectPlayer}
+              rotationInfo={rotationInfoMap[p.id] || null}
             />
           ))}
           {benchPlayers.length === 0 && (
@@ -292,15 +335,18 @@ export default function FieldOvalView() {
 
           <OvalZone zone="DEFENCE" label="Defence" padH="10%" padTop="10%" padBottom="3%"
             players={activePlayers} matchPlayers={matchPlayers} playerTimers={playerTimers}
-            selectedPlayerId={selectedPlayerId} onSelect={selectPlayer} canHighlight={canHighlight} />
+            selectedPlayerId={selectedPlayerId} onSelect={selectPlayer} canHighlight={canHighlight}
+            rotationInfoMap={rotationInfoMap} />
 
           <OvalZone zone="MIDFIELD" label="Midfield" padH="5%" padTop="3%" padBottom="3%"
             players={activePlayers} matchPlayers={matchPlayers} playerTimers={playerTimers}
-            selectedPlayerId={selectedPlayerId} onSelect={selectPlayer} canHighlight={canHighlight} />
+            selectedPlayerId={selectedPlayerId} onSelect={selectPlayer} canHighlight={canHighlight}
+            rotationInfoMap={rotationInfoMap} />
 
           <OvalZone zone="FORWARD" label="Forward" padH="10%" padTop="3%" padBottom="10%"
             players={activePlayers} matchPlayers={matchPlayers} playerTimers={playerTimers}
-            selectedPlayerId={selectedPlayerId} onSelect={selectPlayer} canHighlight={canHighlight} />
+            selectedPlayerId={selectedPlayerId} onSelect={selectPlayer} canHighlight={canHighlight}
+            rotationInfoMap={rotationInfoMap} />
         </div>
       </div>
     </div>

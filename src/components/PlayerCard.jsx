@@ -38,7 +38,8 @@ const ZONE_STYLES = {
   },
 }
 
-export default function PlayerCard({ player, matchPlayer, togSeconds, benchSeconds, stintSeconds, isSelected, onSelect, compact }) {
+// rotationInfo shape: { groupColor, isNextOn, isNextOff, secondsUntil, isApproaching, isOverdue }
+export default function PlayerCard({ player, matchPlayer, togSeconds, benchSeconds, stintSeconds, isSelected, onSelect, compact, rotationInfo }) {
   const [flash, setFlash] = useState(false)
   const position = matchPlayer?.current_position || 'BENCH'
   const isInjured = matchPlayer?.status === 'INJURED'
@@ -57,17 +58,33 @@ export default function PlayerCard({ player, matchPlayer, togSeconds, benchSecon
 
   const displaySeconds = position === 'BENCH' ? (benchSeconds || 0) : (togSeconds || 0)
 
+  // Rotation derived state
+  const showCountdown = rotationInfo?.isNextOff && rotationInfo?.isApproaching
+  const countdownSecs = rotationInfo?.secondsUntil ?? 0
+  const countdownUrgent = countdownSecs <= 30 || rotationInfo?.isOverdue
+  const countdownText = rotationInfo?.isOverdue
+    ? 'LATE'
+    : formatTime(Math.max(0, countdownSecs))
+
   return (
     <button
       onClick={handleClick}
       className={`
-        relative w-full h-full min-h-[80px] rounded-lg border-2 p-2 text-left transition-all duration-150
+        relative w-full h-full min-h-[80px] rounded-lg border-2 p-2 text-left transition-all duration-150 overflow-hidden
         ${isInjured ? 'opacity-40 cursor-not-allowed bg-sharks-surface border-sharks-border' : `${style.bg} ${style.border} hover:brightness-125`}
         ${isSelected ? 'selected-card border-sharks-red' : ''}
         ${flash ? 'swap-flash' : ''}
       `}
       disabled={isInjured}
     >
+      {/* Rotation group left accent bar */}
+      {rotationInfo && !isInjured && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-[3px]"
+          style={{ background: rotationInfo.groupColor, opacity: 0.9 }}
+        />
+      )}
+
       {/* Jersey number */}
       <div className={`font-condensed font-black text-3xl leading-none ${isInjured ? 'text-gray-600' : style.numberColor}`}>
         #{player.number}
@@ -85,10 +102,37 @@ export default function PlayerCard({ player, matchPlayer, togSeconds, benchSecon
         </div>
       )}
 
-      {/* Timer */}
-      <div className={`font-condensed font-bold text-sm tabular-nums absolute bottom-2 right-2 ${isInjured ? 'text-gray-600' : 'text-white/70'}`}>
-        {formatTime(displaySeconds)}
-      </div>
+      {/* Timer / countdown chip (bottom right) */}
+      {showCountdown ? (
+        <div
+          className={`font-condensed font-black text-sm tabular-nums absolute bottom-2 right-2 px-1.5 py-0.5 rounded leading-none ${
+            countdownUrgent
+              ? 'bg-red-500/20 text-red-400 animate-pulse'
+              : 'bg-amber-500/20 text-amber-400'
+          }`}
+        >
+          {countdownText}
+        </div>
+      ) : (
+        <div className={`font-condensed font-bold text-sm tabular-nums absolute bottom-2 right-2 ${isInjured ? 'text-gray-600' : 'text-white/70'}`}>
+          {formatTime(displaySeconds)}
+        </div>
+      )}
+
+      {/* Rotation status dot (bottom left) */}
+      {rotationInfo && !isInjured && !isSelected && (
+        <div
+          className="absolute bottom-2 left-2.5 w-[7px] h-[7px] rounded-full"
+          style={{
+            background: rotationInfo.isNextOn
+              ? '#60A5FA'  // blue — next on (bench player)
+              : rotationInfo.isNextOff
+              ? (rotationInfo.isApproaching ? (countdownUrgent ? '#EF4444' : '#F59E0B') : '#F59E0B')
+              : rotationInfo.groupColor,
+            opacity: rotationInfo.isNextOn || rotationInfo.isNextOff ? 1 : 0.4,
+          }}
+        />
+      )}
 
       {/* Injured icon */}
       {isInjured && (

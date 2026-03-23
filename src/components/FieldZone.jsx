@@ -25,19 +25,21 @@ const ZONE_CONFIG = {
   },
 }
 
-export default function FieldZone({ zone, players, matchPlayers, playerTimers, selectedPlayerId, onSelectPlayer }) {
-  const config = ZONE_CONFIG[zone]
-  const slots = ZONE_POSITIONS[zone] // [{id, short, label}]
+function fmt(s) {
+  const t = Math.max(0, s || 0)
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
+}
 
-  // Players currently in this zone (not injured)
+// zoneIndicators: [{ color, secondsUntil, isOverdue }] — approaching rotations for this zone
+export default function FieldZone({ zone, players, matchPlayers, playerTimers, selectedPlayerId, onSelectPlayer, rotationInfoMap, zoneIndicators }) {
+  const config = ZONE_CONFIG[zone]
+  const slots = ZONE_POSITIONS[zone]
+
   const zonePlayers = players.filter(p => {
     const mp = matchPlayers.find(m => m.player_id === p.id)
     return mp && mp.current_position === zone && mp.status !== 'INJURED'
   })
 
-  // Map each player to their exact named slot — no fallback filling.
-  // named_position is always swapped along with current_position on rotation,
-  // so every player in this zone should match a slot here exactly.
   const slotMap = {}
   zonePlayers.forEach(p => {
     const mp = matchPlayers.find(m => m.player_id === p.id)
@@ -47,13 +49,37 @@ export default function FieldZone({ zone, players, matchPlayers, playerTimers, s
     }
   })
 
+  const indicators = zoneIndicators || []
+
   return (
     <div className={`flex-1 rounded-xl border ${config.borderColor} ${config.bgColor} p-2 flex flex-col min-h-0`}>
       {/* Zone header */}
       <div className="flex items-center justify-between mb-1.5 px-1">
-        <span className={`font-condensed font-bold text-xs uppercase tracking-widest ${config.labelColor}`}>
-          {config.label}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`font-condensed font-bold text-xs uppercase tracking-widest ${config.labelColor}`}>
+            {config.label}
+          </span>
+
+          {/* Approaching rotation indicators */}
+          {indicators.map((ind, i) => (
+            <span
+              key={i}
+              className={`font-condensed font-black tabular-nums text-[10px] px-1.5 py-0.5 rounded leading-none ${
+                ind.isOverdue
+                  ? 'animate-pulse'
+                  : ''
+              }`}
+              style={{
+                background: `${ind.color}22`,
+                color: ind.isOverdue ? '#EF4444' : ind.color,
+                border: `1px solid ${ind.color}44`,
+              }}
+            >
+              {ind.isOverdue ? 'ROTATE' : fmt(ind.secondsUntil)}
+            </span>
+          ))}
+        </div>
+
         <span className={`font-condensed text-xs ${zonePlayers.length === 6 ? config.labelColor : 'text-yellow-500'}`}>
           {zonePlayers.length}/6
         </span>
@@ -65,6 +91,7 @@ export default function FieldZone({ zone, players, matchPlayers, playerTimers, s
           const player = slotMap[pos.id] || null
           const mp = player ? matchPlayers.find(m => m.player_id === player.id) : null
           const timer = player ? playerTimers[player.id] : null
+          const rotationInfo = player ? (rotationInfoMap?.[player.id] || null) : null
 
           return (
             <div key={pos.id} className="flex flex-col min-h-0">
@@ -83,6 +110,7 @@ export default function FieldZone({ zone, players, matchPlayers, playerTimers, s
                     stintSeconds={timer?.stintSeconds}
                     isSelected={selectedPlayerId === player.id}
                     onSelect={onSelectPlayer}
+                    rotationInfo={rotationInfo}
                   />
                 </div>
               ) : (
